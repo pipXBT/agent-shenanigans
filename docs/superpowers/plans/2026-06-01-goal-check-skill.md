@@ -26,6 +26,15 @@ No scripts, no `references/`, no `SKILL.grok.md` in v1 (YAGNI — added only if 
 
 ## Task 1: Author the `goal-check/SKILL.md`
 
+> **Post-implementation note (2026-06-01):** the canonical `SKILL.md` is the live
+> file. The verbatim content below was refined during code review (commit
+> `cc7831b`) with four changes — (1) the verdict block's `GAPS` carries raw deduped
+> strings while the imperative phrasing lives in the prose guidance; (2) `CONFIDENCE`
+> is surfaced per judge in the Step-4 verdict line; (3) the trigger `/goal-check`
+> became `run goal-check` (no real slash command exists); (4) the Step-1 transcript
+> bullet gained an "omit if no prior conversation (CI gate)" clause. Re-create from
+> the live file, not this snapshot.
+
 **Files:**
 - Create: `goal-check/SKILL.md`
 
@@ -327,3 +336,24 @@ Expected: a symlink pointing at the repo's `goal-check/` directory.
 - `install.sh --dry-run` discovers the skill.
 - Behavioural fixtures pass: false-MET trap -> NOT MET; true MET -> MET; no-check-command -> "unverified — transcript only".
 - All committed on `feature/goal-check-skill`; ready for the user's merge/PR decision (superpowers:finishing-a-development-branch).
+
+## Verification results (2026-06-01)
+
+The behavioural fixtures were run **live** — the actual 3-judge Haiku panel was
+spawned via the Agent tool (`model: haiku`), exactly as `SKILL.md` prescribes — not
+merely walked through on paper.
+
+- **Test A — false-MET trap:** check command exits 1 (`feature.txt` lacks `DONE`)
+  while the worker's transcript claims "it's complete and working." Panel returned
+  **NOT MET (0/3)** — all three judges overrode the false claim on the exit code +
+  file state. This is the exact case the built-in transcript-only `/goal` evaluator
+  gets wrong. ✅
+- **Test B — true MET:** `feature.txt` = `DONE`, check exits 0, truthful claim.
+  Panel returned **MET (3/3)**. The Skeptic independently re-ran the check command
+  (5 tool calls) before conceding — the hybrid "judges may pull more context" path
+  exercised live. ✅
+- **Test C — no check command:** confirmed by inspection that `SKILL.md`'s edge-case
+  text labels the verdict **"unverified — transcript only"** rather than emitting a
+  silent context-verified MET. ✅
+
+No `SKILL.md` changes were required by verification.
