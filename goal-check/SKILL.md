@@ -1,6 +1,6 @@
 ---
 name: goal-check
-description: "Use to rigorously confirm a goal or completion condition is ACTUALLY met before declaring work done — the context-verifying alternative to Claude Code's built-in /goal evaluator (which judges only the conversation transcript). Runs a 3-judge Haiku panel (Literalist / Verifier / Skeptic) that checks the claim against real evidence — runs a check command and inspects repo state — and returns a majority verdict with actionable gaps. Triggers: 'is the goal met', 'verify the goal', 'check goal completion', 'confirm the goal is done', 'goal gate', '/goal-check'."
+description: "Use to rigorously confirm a goal or completion condition is ACTUALLY met before declaring work done — the context-verifying alternative to Claude Code's built-in /goal evaluator (which judges only the conversation transcript). Runs a 3-judge Haiku panel (Literalist / Verifier / Skeptic) that checks the claim against real evidence — runs a check command and inspects repo state — and returns a majority verdict with actionable gaps. Triggers: 'is the goal met', 'verify the goal', 'check goal completion', 'confirm the goal is done', 'goal gate', 'run goal-check'."
 ---
 
 # goal-check — context-verified goal-completion gate
@@ -33,7 +33,7 @@ at the claimed finish line for a context-verified second opinion.
 
 - Run the check command. Capture **stdout, stderr, and exit code** in full.
 - Read the relevant files; clip the sections that bear on the condition.
-- Clip the slice of the transcript that states what was done / claimed.
+- Clip the slice of the transcript that states what was done / claimed *(omit if invoked without prior conversation context — e.g. a pure CI-style gate)*.
 - Assemble these into one **evidence bundle** you hand to every judge, so all three
   judge the same ground truth.
 
@@ -75,28 +75,31 @@ GAPS: ["...", ...]   # empty if MET
 
 ### 3. Aggregate — majority
 
-Count MET votes. **>= 2 of 3 -> MET; otherwise NOT MET.** Confidence is
-informational (it does not change the count). A judge that errored or returned
-unparseable output counts as a NOT_MET abstention; note the degraded panel.
+Count MET votes. **>= 2 of 3 -> MET; otherwise NOT MET.** Confidence does not
+change the count, but surface it per judge in the verdict (Step 4) so a 2/3 MET
+carried by low-confidence votes reads as a weaker gate. A judge that errored or
+returned unparseable output counts as a NOT_MET abstention; note the degraded panel.
 
 ### 4. Emit the verdict (to the caller)
 
 ```
 GOAL <MET | NOT MET> (<met-count>/3)
-  Literalist -> <MET|NOT_MET>: <reason>
-  Verifier   -> <MET|NOT_MET>: <reason>
-  Skeptic    -> <MET|NOT_MET>: <reason>
+  Literalist -> <MET|NOT_MET> (<confidence>): <reason>
+  Verifier   -> <MET|NOT_MET> (<confidence>): <reason>
+  Skeptic    -> <MET|NOT_MET> (<confidence>): <reason>
 ```
 
-If **NOT MET**, follow with consolidated guidance — the union of all `GAPS`, written
-as imperatives ("To satisfy the goal: ...") so it feeds straight into the next work
-iteration.
+If **NOT MET**, follow with consolidated guidance — the deduplicated union of the
+judges' `GAPS`, rewritten as imperatives ("To satisfy the goal: ...") so it feeds
+straight into the next work iteration.
 
-Always end with a parseable block:
+Always end with a parseable block. Its `GAPS` field carries the judges' raw gap
+strings (deduplicated union) — the imperative phrasing lives in the guidance prose
+above, not here:
 ```
 VERDICT: MET | NOT_MET
 VOTES: <met-count>/3
-GAPS: [ ... ]
+GAPS: ["<raw gap>", ...]
 ```
 
 ## Edge cases
