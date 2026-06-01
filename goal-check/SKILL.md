@@ -43,9 +43,10 @@ Spawn **all three in a single response** (so they run concurrently) using the Ag
 tool with **`model: haiku`**. Give each: the condition, the full evidence bundle, its
 lens prompt below, and license to Read/Grep for more if its lens needs it.
 
-> **Why Agent subagents and not `/debate` / acpx:** acpx is broken in this
-> environment. Agent-tool subagents are the working substitute and let you pin the
-> small, cheap Haiku model this gate is meant to use.
+> **Why Agent subagents and not `/debate` / acpx:** the `/debate` panel runs on
+> acpx, which depends on external agent CLIs that aren't always installed (and are
+> broken in some environments). Agent-tool subagents are the portable substitute and
+> let you pin the small, cheap Haiku model this gate is meant to use.
 
 **Judge A — Literalist:**
 > Decompose the completion condition into every atomic clause. For each clause,
