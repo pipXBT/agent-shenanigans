@@ -54,6 +54,25 @@ Mix and match any acpx-supported agents: `codex`, `gemini`, `claude`, `opencode`
 
 See `/debate:acpx-setup` output for the current panel and any missing auth.
 
+## Engine selection (read FIRST — saves a burned panel run)
+
+Three interchangeable engines run the same panel/personas/SHA discipline:
+
+1. **acpx** (`/debate:all`, cc-debate plugin) — multi-vendor CLIs. Use when
+   acpx subprocesses actually work in this environment.
+2. **Claude Code Workflow port** (`debate/SKILL.workflow.md`, alongside this
+   file) — the panel as a Workflow script with schema-forced verdicts; no
+   external CLIs. Use when acpx is broken/unavailable, or when you want
+   structured findings instead of regexing verdicts from prose.
+3. **Grok Build port** (`SKILL.grok.md`) — for Grok Build sessions.
+
+**Known acpx failure signature (do not rediscover it with a full panel run):**
+every reviewer exits 1 with "claude CLI not installed" (the acpx subprocesses
+aren't on PATH) while the runner exits 0 and reports "complete" within seconds.
+If a prior session in this environment hit this — or a 1-reviewer probe run
+shows it — go STRAIGHT to the Workflow port. A full 7-lens attempt + a 900s
+background skeptic is the observed cost of finding out the slow way.
+
 ## Usage
 
 ### Full multi-model debate (recommended)
@@ -99,6 +118,7 @@ After first use, add the printed Bash/Read/Write/Agent patterns to your `~/.clau
 ## Notes
 
 - The actual command implementations live in the `cc-debate` plugin (installed via `/plugin install debate@cc-debate`). This skill exists to surface the capability in every session's skill list.
+- **Silent-success trap:** `run-parallel-acpx.sh` exits 0 even when EVERY reviewer errored — "review complete" in under ~10s means they all died instantly, not that they approved. Always check the per-reviewer `<name>-exit.txt` files (exit 1 + empty/stub `<name>-output.md` = dead reviewer), never infer success from the runner's exit code.
 - A ready-to-use reviewer panel ships alongside this skill at `debate/debate-acpx.example.json` (Skeptic / Architect / Pragmatist plus the Grok personas Bullshit Detector, Constraint Engineer, Pager Duty, Future Me). Copy it to `~/.claude/debate-acpx.json` to skip the interactive setup.
 - All reviewer output is read in full (no skimming). SHA checks prevent "I fixed it, trust me" bypasses.
 - Work dirs are in `.tmp/ai-review-*` inside the project and cleaned up automatically (or via `safe-cleanup.sh`).
@@ -108,7 +128,9 @@ Run `/debate:acpx-setup` if you haven't configured reviewers yet.
 
 ---
 
-**Grok users:** There is a native Grok Build port of this skill, vendored alongside this file as `debate/SKILL.grok.md` (installed to `~/.grok/skills/debate/SKILL.md` by `install.sh --target grok`). It uses the same philosophy (personas, parallel subagents, debate rounds, SHA gates) but is implemented with Grok's `spawn_subagent` + `resume_from` + `todo_write` primitives instead of acpx + external CLIs. Grok Build also reads `~/.claude/skills/`, but dedupes skills by name with `~/.grok/skills/` taking priority — so installing both variants gives each environment the right one automatically. The two versions are complementary.
+**Grok users:** There is a native Grok Build port of this skill, vendored alongside this file as `debate/SKILL.grok.md` (installed to `~/.grok/skills/debate/SKILL.md` by `install.sh --target grok`). It uses the same philosophy (personas, parallel subagents, debate rounds, SHA gates) but is implemented with Grok's `spawn_subagent` + `resume_from` + `todo_write` primitives instead of acpx + external CLIs. Grok Build also reads `~/.claude/skills/`, but dedupes skills by name with `~/.grok/skills/` taking priority — so installing both variants gives each environment the right one automatically. The versions are complementary.
+
+**Claude Code Workflow users:** The third port, `debate/SKILL.workflow.md`, runs the panel on Claude Code's Workflow tool (schema-forced verdicts, no external CLIs). Same personas from `~/.claude/debate-acpx.json`, same round/SHA discipline and scripts. Born from a 2026-06 postmortem across 15 sessions where the acpx path was environment-broken and every panel ran as hand-rolled Agent subagents — this port codifies that fallback properly.
 
 ---
 
