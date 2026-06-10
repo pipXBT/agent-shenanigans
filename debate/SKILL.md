@@ -66,12 +66,17 @@ Three interchangeable engines run the same panel/personas/SHA discipline:
    structured findings instead of regexing verdicts from prose.
 3. **Grok Build port** (`SKILL.grok.md`) — for Grok Build sessions.
 
-**Known acpx failure signature (do not rediscover it with a full panel run):**
-every reviewer exits 1 with "claude CLI not installed" (the acpx subprocesses
-aren't on PATH) while the runner exits 0 and reports "complete" within seconds.
-If a prior session in this environment hit this — or a 1-reviewer probe run
-shows it — go STRAIGHT to the Workflow port. A full 7-lens attempt + a 900s
-background skeptic is the observed cost of finding out the slow way.
+**The external-CLI path is the flaky one — probe it, don't trust it.**
+Observed failure modes (different sessions, same environment): (a) every
+reviewer exits 1 "claude CLI not installed" — acpx subprocesses not on PATH
+(fixed by invoke-acpx.sh's direct-CLI bypass IF `claude`/`grok` are on PATH);
+(b) the grok lenses exit 1 again weeks later — CLI auth drift — forcing a
+mid-debate re-run of those lenses as Agent subagents. In BOTH modes the
+runner exits 0 and reports "complete" within seconds. Preflight: run ONE
+cheap reviewer through `invoke-acpx.sh` and check its `<name>-exit.txt` is 0
+with a non-stub `<name>-output.md`; on any failure go STRAIGHT to the
+Workflow port. A full 7-lens attempt + a 900s background skeptic is the
+observed cost of finding out the slow way.
 
 ## Usage
 
