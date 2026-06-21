@@ -18,6 +18,7 @@ skill needs. Install one, several, or all of them — into either CLI, or both.
 | [parallel-orchestrate](./parallel-orchestrate/) | Read a design doc, decompose into parallelizable work units, then fan out one Opus agent per unit into its own [cmux](https://cmux.com) workspace tab. Each fork inherits the orchestrator's recon as live conversation context (via JSONL fork) and works in an isolated git worktree. | Claude |
 | [skill-postmortem](./skill-postmortem/) | Review the effectiveness of *another* skill against actual session evidence. Reads JSONLs where the skill was invoked, categorizes friction across eight categories, confidence-ranks findings, and proposes evidence-backed edits — user approves each before it lands. | Claude |
 | [goal-check](./goal-check/) | Context-verified goal-completion gate. An orchestrating agent hands it a completion condition (and optionally a check command); the skill gathers real evidence — runs the check, reads repo state — then a 3-judge Haiku panel (Literalist / Verifier / Skeptic) votes by majority on whether the goal is *actually* met, returning actionable gaps. The rigorous alternative to the built-in `/goal` evaluator's transcript-only judging. | Claude |
+| [code-cleanup](./code-cleanup/) | Deep, systematic codebase cleanup. Recon once, then fan out nine concern-scoped subagents — dedup, type consolidation, dead code, circular deps, weak types, dead-path removal, mechanical autofix, test hygiene, AI slop — each inheriting this session's recon **plus** a scope-discipline guard (distilled cleanup rules) so it stops at its mandate instead of over-refactoring. Dry-run by default; edit mode isolates each fork in its own git worktree and reconciles with a real 3-way merge. Ships a Claude Code variant (`cc-fork` context inheritance) **and** a Grok-native variant (`spawn_subagent`). | Claude + Grok |
 
 More to come.
 
@@ -115,6 +116,14 @@ only if the skill needs different behavior in Grok Build.
   plugin and [`cc-skills`](https://github.com/STRML/cc-skills). The upstream plugin
   remains the canonical implementation of the `/debate:*` commands; this repo vendors a
   customized reviewer panel and a Grok-native port.
+- The [`code-cleanup`](./code-cleanup/) skill is adapted from Sam Reed's
+  ([STRML](https://github.com/STRML)) [`cc-skills`](https://github.com/STRML/cc-skills)
+  `code-cleanup` command and `cc-fork` tool (MIT, © Samuel Reed). `scripts/cc-fork` is
+  vendored verbatim from upstream; this repo revises the concern set, adds
+  worktree-isolated edit mode, and folds in a scope-discipline guard. Those cleanup
+  rules are in turn distilled from
+  [`ciembor/agent-rules-books`](https://github.com/ciembor/agent-rules-books) (Maciej
+  Ciemborowicz) and the classic software-engineering texts it summarizes.
 
 ## License
 
