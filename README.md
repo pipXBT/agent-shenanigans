@@ -7,6 +7,10 @@ Each subdirectory is an independent skill: a `SKILL.md` (with YAML frontmatter t
 tells the agent when to invoke it) plus any supporting scripts and reference docs the
 skill needs. Install one, several, or all of them — into either CLI, or both.
 
+> **New here?** [`WORKFLOW.md`](./WORKFLOW.md) shows how these skills fit together into
+> one end-to-end pipeline (bootstrap → think → debate → build → clean → map → capture),
+> alongside superpowers and two referenced plugins.
+
 > Renamed from `claude-tings`. The old GitHub URL auto-redirects, but update any
 > local clones to `agent-shenanigans`.
 
@@ -19,8 +23,38 @@ skill needs. Install one, several, or all of them — into either CLI, or both.
 | [skill-postmortem](./skill-postmortem/) | Review the effectiveness of *another* skill against actual session evidence. Reads JSONLs where the skill was invoked, categorizes friction across eight categories, confidence-ranks findings, and proposes evidence-backed edits — user approves each before it lands. | Claude |
 | [goal-check](./goal-check/) | Context-verified goal-completion gate. An orchestrating agent hands it a completion condition (and optionally a check command); the skill gathers real evidence — runs the check, reads repo state — then a 3-judge Haiku panel (Literalist / Verifier / Skeptic) votes by majority on whether the goal is *actually* met, returning actionable gaps. The rigorous alternative to the built-in `/goal` evaluator's transcript-only judging. | Claude |
 | [code-cleanup](./code-cleanup/) | Deep, systematic codebase cleanup. Recon once, then fan out nine concern-scoped subagents — dedup, type consolidation, dead code, circular deps, weak types, dead-path removal, mechanical autofix, test hygiene, AI slop — each inheriting this session's recon **plus** a scope-discipline guard (distilled cleanup rules) so it stops at its mandate instead of over-refactoring. Dry-run by default; edit mode isolates each fork in its own git worktree and reconciles with a real 3-way merge. Ships a Claude Code variant (`cc-fork` context inheritance) **and** a Grok-native variant (`spawn_subagent`). | Claude + Grok |
+| [session-learnings](./session-learnings/) | End-of-session capture: folds non-obvious commands, corrections, and gotchas into the project's `CLAUDE.md`. Fires on `/clear`, `PreCompact`, or explicit invocation; filters generic advice. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* | Claude |
+| [compound](./compound/) | After a hard-won fix, capture root cause + solution into project memory where future sessions auto-load it. Runs two research subagents, then writes `memory/solution_<slug>.md` and updates the `MEMORY.md` index. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* | Claude |
 
 More to come.
+
+## Commands
+
+Slash commands live in [`commands/`](./commands/) and install into `~/.claude/commands/`
+on a full `./install.sh` (Claude only — Grok handles commands differently).
+
+| Command | What it does |
+|---------|--------------|
+| `/init` | Bootstrap a repo for Claude Code — writes `CLAUDE.md` + a language-detected `.devcontainer`. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* Used instead of Claude's built-in `/init`. |
+
+## Referenced plugins
+
+Two pieces of the workflow live in external plugins (installed via `/plugin`, not
+symlinked from here):
+
+- **codemaps** — token-lean architecture maps, regenerated with `/update-codemaps`:
+  `/plugin marketplace add STRML/cc-codemaps` → `/plugin install cc-codemaps@cc-codemaps`.
+- **debate backend** — the `/debate:*` commands the [`debate`](./debate/) skill surfaces
+  run on the `cc-debate` plugin:
+  `/plugin marketplace add STRML/cc-debate` → `/plugin install debate@cc-debate`.
+
+See [`WORKFLOW.md`](./WORKFLOW.md) for how everything fits together.
+
+## See also
+
+Other [STRML/cc-skills](https://github.com/STRML/cc-skills) I run but haven't pulled
+into this repo — grab them upstream: `recall`, `scan-diff`, `commit-and-verify`,
+`coderabbit-new`.
 
 ## Two CLIs, one repo
 
@@ -124,6 +158,12 @@ only if the skill needs different behavior in Grok Build.
   rules are in turn distilled from
   [`ciembor/agent-rules-books`](https://github.com/ciembor/agent-rules-books) (Maciej
   Ciemborowicz) and the classic software-engineering texts it summarizes.
+- [`session-learnings`](./session-learnings/), [`compound`](./compound/), and the
+  [`/init`](./commands/init.md) command are **vendored verbatim** from Sam Reed's
+  ([STRML](https://github.com/STRML)) [`cc-skills`](https://github.com/STRML/cc-skills)
+  (MIT, © Samuel Reed); each carries an attribution header and is otherwise unmodified.
+- [`/update-codemaps`](https://github.com/STRML/cc-codemaps) is **referenced** as the
+  `cc-codemaps` plugin (not vendored) — Sam maintains it upstream.
 
 ## License
 

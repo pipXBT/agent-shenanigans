@@ -13,6 +13,14 @@ frontmatter + markdown instructions) plus any scripts/reference docs it needs.
 Skills are distributed by symlinking them into a CLI's skills directory, not by
 copying — so `git pull` propagates updates instantly.
 
+Two things sit alongside the skill dirs: the top-level [`commands/`](./commands/)
+directory holds Claude slash-commands (Claude-only; `install.sh` links
+`commands/*.md` into `~/.claude/commands/` on a full install), and a few
+skills/commands are **vendored verbatim** from
+[STRML/cc-skills](https://github.com/STRML/cc-skills) with an attribution header
+(`session-learnings`, `compound`, `/init`). See [`WORKFLOW.md`](./WORKFLOW.md) for
+how every piece composes into one end-to-end pipeline.
+
 ## The two-CLI model (important)
 
 Both CLIs read `SKILL.md`-shaped skill directories, but from different roots:
@@ -51,6 +59,14 @@ it installs to `~/.claude/skills/` and Grok picks it up there via compatibility.
    load-on-demand docs in `<skill-name>/references/`.
 4. Add a row to the skills table in `README.md`.
 5. Re-run `./install.sh` (or `./install.sh <skill-name>`) to link it.
+
+## Adding a command
+
+Slash commands go in top-level `commands/<name>.md` (a markdown file with a
+`description` in frontmatter). They are **Claude-only** — `install.sh` symlinks
+every `commands/*.md` into `~/.claude/commands/` on a full install (skipped under
+`--target grok`, and when specific skill names are passed). A vendored command
+carries the same attribution header as a vendored skill.
 
 ## Conventions
 
