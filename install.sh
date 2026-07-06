@@ -12,8 +12,11 @@
 # Refuses to overwrite an existing real directory at a symlink target;
 # replaces existing symlinks pointing elsewhere only after confirmation.
 #
+# A full install (no skill names given) also links every commands/*.md into
+# ~/.claude/commands/ (Claude only — Grok handles slash-commands differently).
+#
 # Usage:
-#   ./install.sh                       # both targets, every skill
+#   ./install.sh                       # both targets, every skill + commands
 #   ./install.sh --target claude       # only ~/.claude/skills/
 #   ./install.sh --target grok         # only ~/.grok/skills/ (Grok-native variants)
 #   ./install.sh --target both         # default
@@ -26,6 +29,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLAUDE_SKILLS_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 GROK_SKILLS_DIR="${GROK_SKILLS_DIR:-$HOME/.grok/skills}"
+CLAUDE_COMMANDS_DIR="${CLAUDE_COMMANDS_DIR:-$HOME/.claude/commands}"
 TARGET="both"
 DRY_RUN=0
 
@@ -36,7 +40,7 @@ while [[ $# -gt 0 ]]; do
     --target) TARGET="${2:-}"; shift 2 ;;
     --target=*) TARGET="${1#*=}"; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
-    -h|--help) sed -n '2,22p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,25p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) ARGS+=("$1"); shift ;;
   esac
 done
@@ -119,6 +123,16 @@ install_grok() {
   chmod_scripts "$src"
 }
 
+install_commands() {
+  local src="$REPO_ROOT/commands"
+  [[ -d "$src" ]] || return 0
+  run mkdir -p "$CLAUDE_COMMANDS_DIR"
+  while IFS= read -r f; do
+    local base; base="$(basename "$f")"
+    link "$f" "$CLAUDE_COMMANDS_DIR/$base" "commands/$base [claude]"
+  done < <(find "$src" -maxdepth 1 -type f -name '*.md')
+}
+
 echo "install.sh: target=$TARGET  claude=$CLAUDE_SKILLS_DIR  grok=$GROK_SKILLS_DIR"
 for name in "${SKILLS[@]}"; do
   src="$REPO_ROOT/$name"
@@ -129,6 +143,12 @@ for name in "${SKILLS[@]}"; do
   [[ "$TARGET" == "claude" || "$TARGET" == "both" ]] && install_claude "$name"
   [[ "$TARGET" == "grok"   || "$TARGET" == "both" ]] && install_grok "$name"
 done
+
+# Slash commands (Claude only, on a full install — not when specific skills are named)
+if [[ "$TARGET" == "claude" || "$TARGET" == "both" ]] && [[ ${#ARGS[@]} -eq 0 ]]; then
+  echo "commands:"
+  install_commands
+fi
 
 echo
 echo "Done. Restart any running 'claude' / 'grok' session — skills are loaded at session start."
