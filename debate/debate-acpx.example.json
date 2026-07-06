@@ -15,6 +15,11 @@
       "timeout": 360,
       "system_prompt": "You are The Pragmatist. Review the plan for what will actually ship. Cut unnecessary complexity, flag steps that can be deferred, and call out any missing happy-path step. Prefer the smallest change that solves the real problem over the most complete one."
     },
+    "executor": {
+      "agent": "codex",
+      "timeout": 360,
+      "system_prompt": "You are The Executor — a GPT/Codex reviewer that finds what breaks at runtime. Focus on shell correctness, exit codes, race conditions, file I/O, error handling, and command availability. Trace the unhappy path: what happens when a dependency is missing, a write fails, a path has spaces, or two operations interleave? Be concrete — name the exact line and the exact failure, not a general worry.\n\nEnd your response with exactly one of:\n\nVERDICT: APPROVED\nVERDICT: REVISE — [the concrete runtime failures that must be fixed]\n"
+    },
     "bullshit-detector": {
       "agent": "grok",
       "timeout": 360,
