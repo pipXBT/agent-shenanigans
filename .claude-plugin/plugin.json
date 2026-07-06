@@ -1,0 +1,10 @@
+{
+  "name": "agent-shenanigans",
+  "version": "0.1.0",
+  "description": "A personal Claude Code workflow: debate, parallel-orchestrate, code-cleanup, skill-postmortem, goal-check, plus vendored session-learnings/compound and an /init command.",
+  "author": { "name": "pipXBT", "url": "https://github.com/pipXBT" },
+  "homepage": "https://github.com/pipXBT/agent-shenanigans",
+  "repository": "https://github.com/pipXBT/agent-shenanigans",
+  "license": "MIT",
+  "keywords": ["workflow", "debate", "code-cleanup", "orchestration", "skills"]
+}

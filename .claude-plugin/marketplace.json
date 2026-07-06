@@ -1,0 +1,14 @@
+{
+  "name": "agent-shenanigans",
+  "description": "pipXBT's personal Claude Code workflow — debate, orchestrate, clean, capture.",
+  "owner": { "name": "pipXBT", "url": "https://github.com/pipXBT" },
+  "plugins": [
+    {
+      "name": "agent-shenanigans",
+      "source": "./",
+      "version": "0.1.0",
+      "description": "Debate, parallel-orchestrate, code-cleanup, skill-postmortem, goal-check, session-learnings, compound + /init.",
+      "author": { "name": "pipXBT" }
+    }
+  ]
+}
