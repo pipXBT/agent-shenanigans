@@ -3,8 +3,8 @@
 This is how I run any non-trivial change in Claude Code, end to end. The idea in
 one line: **[superpowers](https://github.com/anthropics/claude-code) does the
 thinking — brainstorm, plan, execute — and the skills in this repo wrap that core
-in a `debate → build → clean → map → capture` loop.** Everything here is one
-`git clone` + `./install.sh` away (plus one plugin for codemaps).
+in a `debate → build → clean → map → capture` loop.** Everything here installs as one
+Claude Code plugin (plus two referenced plugins — codemaps and the debate backend).
 
 If you only read one thing, read the pipeline table.
 
@@ -78,10 +78,10 @@ Skeptic) vote on whether the goal is *actually* met, returning actionable gaps.
 
 ## Install
 
-```bash
-# 1. This repo (skills + the /init command)
-git clone https://github.com/pipXBT/agent-shenanigans.git ~/code/agent-shenanigans
-cd ~/code/agent-shenanigans && ./install.sh
+```
+# 1. This plugin (all the skills + the /init command)
+/plugin marketplace add pipXBT/agent-shenanigans
+/plugin install agent-shenanigans@agent-shenanigans
 
 # 2. codemaps (separate plugin)
 /plugin marketplace add STRML/cc-codemaps
@@ -91,10 +91,8 @@ cd ~/code/agent-shenanigans && ./install.sh
 /plugin marketplace add STRML/cc-debate
 /plugin install debate@cc-debate
 
-# 4. superpowers (if you don't already run it) — the planning/execution engine
-#    install per its own instructions, then use /brainstorm + writing-plans
+# 4. superpowers (the planning/execution engine) — install per its own instructions,
+#    then use /brainstorm + writing-plans
 ```
 
 Restart Claude Code after installing plugins so new skills and commands load.
-`./install.sh --help` shows target/skill options; re-run it after `git pull` to
-wire up anything new.

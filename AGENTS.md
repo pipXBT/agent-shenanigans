@@ -1,78 +1,69 @@
 # agent-shenanigans — guide for AI agents
 
-This repository is a **personal collection of agent skills** that work in both
-**Claude Code** and **Grok Build**. If you are an AI agent working *in this repo*,
-read this first. (This file follows the cross-tool `AGENTS.md` convention; Grok
-Build loads it natively as project rules, and Claude Code reads it via the
-`CLAUDE.md` symlink that points here.)
+This repository is a **Claude Code plugin**: a bundle of skills, one slash-command,
+and the manifests that make it installable via `/plugin`. If you are an AI agent
+working *in this repo*, read this first. (This file follows the `AGENTS.md`
+convention; `CLAUDE.md` is symlinked to it.)
 
-## What this repo is
+## Layout
 
-Each top-level directory is one self-contained skill: a `SKILL.md` (YAML
-frontmatter + markdown instructions) plus any scripts/reference docs it needs.
-Skills are distributed by symlinking them into a CLI's skills directory, not by
-copying — so `git pull` propagates updates instantly.
+```
+.claude-plugin/     plugin.json + marketplace.json (plugin + marketplace manifests)
+skills/<name>/      one skill each: SKILL.md (+ optional references/, scripts/)
+commands/<name>.md  Claude slash-commands (e.g. /init)
+WORKFLOW.md         the end-to-end pipeline these compose into
+```
 
-Two things sit alongside the skill dirs: the top-level [`commands/`](./commands/)
-directory holds Claude slash-commands (Claude-only; `install.sh` links
-`commands/*.md` into `~/.claude/commands/` on a full install), and a few
-skills/commands are **vendored verbatim** from
+Claude Code discovers skills under `skills/` and commands under `commands/`
+automatically from the plugin — no per-skill registration. The manifests declare the
+plugin (`.claude-plugin/plugin.json`) and expose it as a one-plugin marketplace
+(`.claude-plugin/marketplace.json`, `source: "./"`) so
+`/plugin marketplace add pipXBT/agent-shenanigans` works.
+
+A few skills/commands are **vendored verbatim** from
 [STRML/cc-skills](https://github.com/STRML/cc-skills) with an attribution header
-(`session-learnings`, `compound`, `/init`). See [`WORKFLOW.md`](./WORKFLOW.md) for
-how every piece composes into one end-to-end pipeline.
+(`session-learnings`, `compound`, `/init`).
 
-## The two-CLI model (important)
+## Bundled scripts (important)
 
-Both CLIs read `SKILL.md`-shaped skill directories, but from different roots:
-
-| CLI         | User skills dir      | Also reads          |
-|-------------|----------------------|---------------------|
-| Claude Code | `~/.claude/skills/`  | —                   |
-| Grok Build  | `~/.grok/skills/`    | `~/.claude/skills/` |
-
-Grok Build dedupes skills **by name**, with `~/.grok/skills/` taking priority
-over `~/.claude/skills/`. We exploit this for skills that need different
-implementations per environment:
-
-- `SKILL.md` in a skill dir → the **Claude Code** variant (installed to `~/.claude/skills/<name>/`).
-- `SKILL.grok.md` in the same dir → the **Grok-native** variant (installed to `~/.grok/skills/<name>/SKILL.md`).
-
-Result: Claude Code sees only its variant; Grok Build sees both but the
-`~/.grok/` one wins. One skill name, two environments, no collision.
-
-A skill with **only** a `SKILL.md` (no `.grok` variant) is environment-agnostic:
-it installs to `~/.claude/skills/` and Grok picks it up there via compatibility.
+A skill that ships an executable (e.g. `parallel-orchestrate/scripts/spawn-parallel.py`,
+`code-cleanup/scripts/cc-fork`) must **not** hard-code `~/.claude/skills/<name>/...` —
+that path is wrong once the skill lives in the plugin cache. Resolve the script at
+runtime instead: prefer `${CLAUDE_PLUGIN_ROOT}/skills/<name>/scripts/...`, and fall
+back to discovery:
+```bash
+find "$HOME/.claude/plugins" "$HOME/.claude/skills" -path '*<name>/scripts/<file>' 2>/dev/null | head -1
+```
+See `skills/parallel-orchestrate/SKILL.md` Preflight for the canonical pattern.
 
 ## Adding or editing a skill
 
-1. Create `<skill-name>/SKILL.md` with frontmatter:
+1. Create `skills/<name>/SKILL.md` with frontmatter:
    ```markdown
    ---
    name: my-skill
    description: "Use when ... [trigger phrases]. [What it does, one sentence.]"
    ---
    ```
-   The `description` is the trigger surface for both CLIs — pack it with concrete
-   trigger phrases and a clear use-case statement.
-2. If the skill needs different behavior in Grok Build, add `<skill-name>/SKILL.grok.md`.
-3. Put executable helpers in `<skill-name>/scripts/` (chmodded by `install.sh`),
-   load-on-demand docs in `<skill-name>/references/`.
-4. Add a row to the skills table in `README.md`.
-5. Re-run `./install.sh` (or `./install.sh <skill-name>`) to link it.
+   The `description` is the trigger surface — pack it with concrete trigger phrases and
+   a clear use-case statement.
+2. Put executable helpers in `skills/<name>/scripts/` (reference them plugin-relatively —
+   see "Bundled scripts"), load-on-demand docs in `skills/<name>/references/`.
+3. Add a row to the skills table in `README.md`.
+4. Bump `version` in both manifests when cutting a release.
 
 ## Adding a command
 
-Slash commands go in top-level `commands/<name>.md` (a markdown file with a
-`description` in frontmatter). They are **Claude-only** — `install.sh` symlinks
-every `commands/*.md` into `~/.claude/commands/` on a full install (skipped under
-`--target grok`, and when specific skill names are passed). A vendored command
-carries the same attribution header as a vendored skill.
+Slash commands go in `commands/<name>.md` (a markdown file with a `description` in
+frontmatter). They load from the plugin automatically. A vendored command carries the
+same attribution header as a vendored skill.
 
 ## Conventions
 
-- Don't relabel third-party work as your own. Skills adapted from someone else's
-  plugin must credit the source (see `debate/` → STRML's `cc-debate`).
-- Never commit secrets. Reviewer/config examples ship as `*.example.json` with
-  prompts and agent names only — no API keys or tokens.
-- Keep each skill self-contained and single-purpose; if a `SKILL.md` is doing two
-  jobs, split it.
+- Don't relabel third-party work as your own. Skills adapted from someone else's plugin
+  must credit the source (see `skills/debate/` → STRML's `cc-debate`).
+- Never commit secrets. Config examples ship as `*.example.json` with prompts and agent
+  names only — no API keys or tokens.
+- Keep each skill self-contained and single-purpose; if a `SKILL.md` is doing two jobs,
+  split it.
+- Dormant `SKILL.grok.md` files remain from the dual-CLI era; the plugin ignores them.
