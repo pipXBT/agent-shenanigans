@@ -8,8 +8,6 @@ capture what was learned.
 > one end-to-end pipeline (bootstrap → think → debate → build → clean → map → capture),
 > alongside superpowers and two referenced plugins.
 
-> Renamed from `claude-tings`. The old GitHub URL auto-redirects; update local clones to
-> `agent-shenanigans`.
 
 ## Install
 
