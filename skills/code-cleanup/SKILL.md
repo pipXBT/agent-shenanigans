@@ -14,9 +14,15 @@ conversation — each owns exactly one cleanup concern. Reconcile their reports.
 > mode, and folds in a scope-discipline guard (see `references/cleanup-rules.md`).
 > `scripts/cc-fork` is vendored verbatim from upstream.
 
-**Dependency:** `cc-fork` on PATH. It ships at `scripts/cc-fork` here; symlink it once
-(`ln -s "$PWD/scripts/cc-fork" ~/.local/bin/cc-fork`) or invoke it by path. If it's
-missing, use the Agent-tool fallback at the end.
+**Dependency:** `cc-fork` on PATH. It ships with this skill at `scripts/cc-fork`. Symlink
+it once to a stable spot so it's on PATH for every run — the skill's own location differs
+between a plugin install and a symlink install, so resolve it rather than assuming `$PWD`:
+```bash
+CC_FORK="$(find "$HOME/.claude/plugins" "$HOME/.claude/skills" -path '*code-cleanup/scripts/cc-fork' 2>/dev/null | head -1)"
+[ -n "$CC_FORK" ] || CC_FORK="${CLAUDE_PLUGIN_ROOT}/skills/code-cleanup/scripts/cc-fork"
+ln -s "$CC_FORK" ~/.local/bin/cc-fork
+```
+Or invoke it by that resolved path. If `cc-fork` is missing, use the Agent-tool fallback at the end.
 
 ## Phase 1 — Recon (this session)
 

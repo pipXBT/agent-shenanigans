@@ -40,6 +40,11 @@ Abort with a clear message if any check fails. Do not continue with degraded beh
 3. **Not on `main`/`master`/`trunk`/`develop` without consent** — confirm explicitly before branching from a protected branch.
 4. **Parent session JSONL exists** — `ls ~/.claude/projects/<encoded-cwd>/*.jsonl` returns at least one substantive file. You will pass this session's UUID as `--parent`.
 5. **No conflicting feature branches** — for each planned task name, verify `git rev-parse --verify --quiet refs/heads/feature/<name>` returns non-zero. If a branch already exists, rename the task or delete the branch first.
+6. **Resolve the bundled spawn script** — this skill ships `scripts/spawn-parallel.py`, whose location differs between a plugin install (plugin cache) and a symlink install (`~/.claude/skills`). Resolve it ONCE now and substitute the resulting **absolute path** for `<SPAWN>` in every command below. Use the literal path, not a shell variable — shell state does not persist across separate tool calls, and some commands (`Monitor`, the dashboard in a second terminal) run in other processes:
+   ```bash
+   find "$HOME/.claude/plugins" "$HOME/.claude/skills" -path '*parallel-orchestrate/scripts/spawn-parallel.py' 2>/dev/null | head -1
+   ```
+   If that returns empty, use `${CLAUDE_PLUGIN_ROOT}/skills/parallel-orchestrate/scripts/spawn-parallel.py`.
 
 ## Phase 1 — Recon
 
@@ -143,7 +148,7 @@ Run the spawn script. `--parent` is **required** — the orchestrator must expli
 
 **Single model:**
 ```bash
-python3 ~/.claude/skills/parallel-orchestrate/scripts/spawn-parallel.py \
+python3 <SPAWN> \
   --session-tag <tag> \
   --parent <orchestrator-session-uuid> \
   --model sonnet \
@@ -154,7 +159,7 @@ python3 ~/.claude/skills/parallel-orchestrate/scripts/spawn-parallel.py \
 
 **Mixed models (per-task override):**
 ```bash
-python3 ~/.claude/skills/parallel-orchestrate/scripts/spawn-parallel.py \
+python3 <SPAWN> \
   --session-tag <tag> --parent <uuid> --stagger 2 \
   --task "payments:sonnet:Implement payment flow..." \
   --task "platform-arch:opus:Design event bus..." \
@@ -206,7 +211,7 @@ After fanout, run the watcher inside `Monitor`. Every state transition (report l
 ```
 Monitor({
   description: "parallel-orchestrate watch for session <tag>",
-  command: "python3 ~/.claude/skills/parallel-orchestrate/scripts/spawn-parallel.py --session-tag <tag> --watch --silent-min 5",
+  command: "python3 <SPAWN> --session-tag <tag> --watch --silent-min 5",
   persistent: true,
   timeout_ms: 3600000
 })
@@ -225,7 +230,7 @@ For ad-hoc snapshots outside an active `--watch`, `--status` still works.
 `--watch` is for the orchestrator session: events stream into the conversation so reactions are deterministic. But events interleave with everything else you're doing in this chat, so at-a-glance is hard. Pair `--watch` with `--dashboard` running in a separate terminal window/tab for a persistent live view:
 
 ```bash
-python3 ~/.claude/skills/parallel-orchestrate/scripts/spawn-parallel.py \
+python3 <SPAWN> \
   --session-tag <tag> --dashboard
 ```
 
@@ -269,7 +274,7 @@ Requires the `rich` Python library (`pip3 install rich` if missing). The dashboa
 ## Phase 7 — Cleanup
 
 ```bash
-python3 ~/.claude/skills/parallel-orchestrate/scripts/spawn-parallel.py \
+python3 <SPAWN> \
   --session-tag <tag> --cleanup [--remove-worktrees] [--purge-session-dir]
 ```
 
