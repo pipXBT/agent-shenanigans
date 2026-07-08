@@ -19,7 +19,7 @@ If you only read one thing, read the pipeline table.
 | 4 | **Clean** | `/code-cleanup` | Right after the build lands — dedup, dead code, weak types, dead paths, AI slop, run by worktree-isolated forks so nothing collides. |
 | 5 | **Map** | `/update-codemaps` | After cleanup — regenerate the token-lean architecture maps in `codemaps/` so the *next* session starts with accurate context. |
 | 6 | **Capture** | `skill-postmortem` · `session-learnings` · `compound` | Close the loop: review a skill that misbehaved, fold session lessons into `CLAUDE.md`, and write hard-won fixes to project memory. |
-| ✓ | **Gate** (anytime) | `goal-check` | Wherever a wrong "done" is costly — a 3-judge, evidence-checked completion gate that runs a check command and reads repo state, not just the transcript. |
+| ✓ | **Gate** (anytime) | `check-in` | Wherever a wrong "done" is costly — a 3-judge, evidence-checked completion gate that runs a check command and reads repo state, not just the transcript. |
 
 ## Stage detail
 
@@ -63,7 +63,7 @@ map that loads at session start). Do this after cleanup so the maps reflect the
 - `compound` — after a hard-won fix, write the root cause + solution to project
   memory so future sessions auto-load it.
 
-**✓ · `goal-check`** — a completion gate you can drop anywhere. It runs a check
+**✓ · `check-in`** — a completion gate you can drop anywhere. It runs a check
 command, reads repo state, and has three Haiku judges (Literalist / Verifier /
 Skeptic) vote on whether the goal is *actually* met, returning actionable gaps.
 
@@ -71,7 +71,7 @@ Skeptic) vote on whether the goal is *actually* met, returning actionable gaps.
 
 | Tool | Origin |
 |------|--------|
-| `debate`, `code-cleanup`, `parallel-orchestrate`, `skill-postmortem`, `goal-check` | Mine (some forked from STRML, then developed further). |
+| `debate`, `code-cleanup`, `parallel-orchestrate`, `skill-postmortem`, `check-in` | Mine (some forked from STRML, then developed further). |
 | `session-learnings`, `compound`, `/init` | [STRML/cc-skills](https://github.com/STRML/cc-skills) — vendored verbatim (MIT), credited in each file. |
 | `/update-codemaps` | [STRML/cc-codemaps](https://github.com/STRML/cc-codemaps) — referenced as a plugin (not vendored). |
 | `/brainstorm`, writing-plans, subagent execution | Anthropic **superpowers** plugin — the planning/execution engine this loop wraps. |

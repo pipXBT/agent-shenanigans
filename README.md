@@ -27,7 +27,7 @@ pipeline you'll also want the two referenced plugins (below).
 | [parallel-orchestrate](./skills/parallel-orchestrate/) | Decompose a design doc into one feature per agent, then fan out one agent per feature into its own git worktree + branch, each inheriting the orchestrator's recon as live context. |
 | [code-cleanup](./skills/code-cleanup/) | Deep, systematic cleanup — nine concern-scoped forks (dedup, dead code, weak types, dead paths, AI slop, …), each in its own worktree in edit mode, reconciled with a real 3-way merge. Dry-run by default. |
 | [skill-postmortem](./skills/skill-postmortem/) | Review a skill against the sessions where it actually fired; categorize friction, confidence-rank, and propose evidence-backed edits — you approve each before it lands. |
-| [goal-check](./skills/goal-check/) | Context-verified completion gate — a 3-judge Haiku panel (Literalist / Verifier / Skeptic) votes on whether a goal is *actually* met, checking a command + repo state, not just the transcript. |
+| [check-in](./skills/check-in/) | Context-verified completion gate — a 3-judge Haiku panel (Literalist / Verifier / Skeptic) votes on whether a goal is *actually* met, checking a command + repo state, not just the transcript. |
 | [session-learnings](./skills/session-learnings/) | Fold non-obvious commands, corrections, and gotchas into the project's `CLAUDE.md`. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* |
 | [compound](./skills/compound/) | After a hard-won fix, write root cause + solution into project memory for future sessions to auto-load. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* |
 
