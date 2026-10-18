@@ -11,6 +11,8 @@ convention; `CLAUDE.md` is symlinked to it.)
 .claude-plugin/     plugin.json + marketplace.json (plugin + marketplace manifests)
 skills/<name>/      one skill each: SKILL.md (+ optional references/, scripts/)
 commands/<name>.md  Claude slash-commands (e.g. /init)
+grok/workflows/     Grok Build workflows (*.rhai). Not loaded by the Claude plugin.
+grok/install.sh     symlinks grok/workflows/*.rhai into ~/.grok/workflows/
 WORKFLOW.md         the end-to-end pipeline these compose into
 ```
 

@@ -41,6 +41,37 @@ pipeline you'll also want the two referenced plugins (below).
 |---------|--------------|
 | `/init` | Bootstrap a repo for Claude Code — writes `CLAUDE.md` + a language-detected `.devcontainer`. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* Used instead of Claude's built-in `/init`. |
 
+## Grok workflows
+
+Grok Build workflows live in `grok/workflows/`. They are not part of the Claude
+plugin, and `/plugin install` does not load them. `deep-research` and
+`learn-traces` already ship with Grok, so they are not copied here.
+
+On another machine, after Grok Build is installed:
+
+```
+git clone https://github.com/pipXBT/agent-shenanigans.git
+./agent-shenanigans/grok/install.sh
+```
+
+That symlinks each workflow into `~/.grok/workflows/`. Re-run it after
+`git pull`. A workflow that is already a real file there is left alone.
+
+| Workflow | What it does |
+|----------|----------------|
+| [adversarial-verification](./grok/workflows/adversarial-verification.rhai) | One task at a time: implement, skeptic, teeth, then test and lint gates, with one fix round. After the last task, three reviewers and one skeptic per finding. |
+
+Run it from Grok with `/adversarial-verification` or
+`/workflow adversarial-verification`. It pauses until you pass an object:
+
+- `repo` — absolute path the agents `cd` into
+- `test_cmd` — the gate command
+- `tasks` — `[{title, brief, plan}]`, or a single `title` plus `brief`
+- Optional: `lint_cmd`, `branch`, `rules`, `forbid`, `base_sha`, `review` (default true)
+
+It will not commit to `main`, push, stash, or add a `Co-Authored-By` trailer.
+A second failure on the same task stops the run.
+
 ## Referenced plugins
 
 Two pieces of the pipeline are separate plugins — install them too:
