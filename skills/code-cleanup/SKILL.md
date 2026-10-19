@@ -30,7 +30,11 @@ Grok: strongest Grok model, effort xhigh. Do not lower effort. Never use Fable.
 Claude: effort xhigh. Haiku 5.5 for a mechanical mandate, Sonnet 5.5 for a local judgment, Opus 5.5 for a design or spec gap. Opus 5 means Opus 5.5.
 ```
 
-On Claude Code the nine cleanup mandates are already the parallel set. Do not invent a second phase graph. Claude effort stays xhigh. Pick Haiku 5.5, Sonnet 5.5, or Opus 5.5 per mandate from the block above.
+On Claude Code the nine cleanup mandates are already the parallel set. Do not invent a second phase graph. A fork cannot change its own model or effort, so the Claude line above takes effect only at spawn time:
+
+- `cc-fork` sets one model per call. Group the mandates by tier and run one call per tier with `--model haiku`, `--model sonnet`, or `--model opus`. A tier that differs from the session model re-reads the inherited context without the prompt cache.
+- `cc-fork` passes no `--effort`. Its forks run at the default effort, not xhigh.
+- The Agent-tool fallback sets `model` and `effort: "xhigh"` on each spawn.
 
 ## Host
 
@@ -137,6 +141,7 @@ TASKS=(
 )
 
 # Prefix every TASK with the Modes block before this call.
+# One call per model tier (see Modes): add --model haiku|sonnet|opus.
 # Claude Code only. Grok Build does not run this line — see Host.
 # cc-fork snapshots this session's JSONL into N forks that resume the full recon.
 cc-fork --stagger 5 --output-dir .tmp/code-cleanup/reports "${TASKS[@]}"
@@ -181,7 +186,8 @@ Grok Build never uses this fallback. It uses the Host spawn.
 
 If `cc-fork` isn't on PATH, use the Agent tool with a **byte-identical prefix** across
 the nine parallel spawns. The prefix must inline **Modes**, the full recon, the scope
-rules, and each mandate. Agent-tool forks don't see conversation history. Stagger spawn #1 until
+rules, and each mandate. Set `model` per tier and `effort: "xhigh"` on each spawn.
+Agent-tool forks don't see conversation history. Stagger spawn #1 until
 streaming confirms cache commit, then launch 2–9 in one message. Inferior (each fork
 re-reads ambient context) but works with zero install. Edit-mode worktree isolation
 still applies — give each spawn its worktree path.

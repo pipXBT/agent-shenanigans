@@ -26,9 +26,9 @@ pipeline you'll also want the two referenced plugins (below).
 | [debate](./skills/debate/) | Multi-AI plan review before writing code — a Grok + ChatGPT + Claude reviewer panel runs in parallel, surfaces hidden assumptions and failure modes, debates contradictions, and returns an `APPROVED`/`REVISE` verdict with SHA-verified plans. |
 | [code-cleanup](./skills/code-cleanup/) | Deep, systematic cleanup — nine concern-scoped forks (dedup, dead code, weak types, dead paths, AI slop, …), each in its own worktree in edit mode, reconciled with a real 3-way merge. Dry-run by default. |
 | [skill-postmortem](./skills/skill-postmortem/) | Review a skill against the sessions where it actually fired; categorize friction, confidence-rank, and propose evidence-backed edits — you approve each before it lands. |
-| [check-in](./skills/check-in/) | Context-verified completion gate — a 3-judge Haiku panel (Literalist / Verifier / Skeptic) votes on whether a goal is *actually* met, checking a command + repo state, not just the transcript. |
-| [session-learnings](./skills/session-learnings/) | Fold non-obvious commands, corrections, and gotchas into the project's `CLAUDE.md`. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* |
-| [compound](./skills/compound/) | After a hard-won fix, write root cause + solution into project memory for future sessions to auto-load. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* |
+| [check-in](./skills/check-in/) | Context-verified completion gate — a 3-judge Haiku panel (Literalist / Verifier / Skeptic) advises an Opus overseer that decides whether a goal is *actually* met, checking a command + repo state, not just the transcript. |
+| [session-learnings](./skills/session-learnings/) | Fold non-obvious commands, corrections, and gotchas into the project's `CLAUDE.md`. *Vendored from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT); local delta named in the file.* |
+| [compound](./skills/compound/) | After a hard-won fix, write root cause + solution into project memory for future sessions to auto-load. *Vendored from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT); local delta named in the file.* |
 
 > One `SKILL.md` per skill. Claude Code and Grok Build both load that file. A **Host**
 > section names the spawn or path that differs. `cc-fork` stays Claude-only. The Grok
@@ -38,7 +38,7 @@ pipeline you'll also want the two referenced plugins (below).
 
 | Command | What it does |
 |---------|--------------|
-| `/init` | Bootstrap a repo for Claude Code — writes `CLAUDE.md` + a language-detected `.devcontainer`. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* Used instead of Claude's built-in `/init`. |
+| `/init` | Bootstrap a repo for Claude Code — writes `CLAUDE.md` + a language-detected `.devcontainer`. *Vendored from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT); local delta named in the file.* Used instead of Claude's built-in `/init`. |
 
 ## Grok workflows
 
@@ -69,7 +69,7 @@ Run it from Grok with `/adversarial-verification` or
 - Optional: `lint_cmd`, `branch`, `rules`, `forbid`, `base_sha`, `review` (default true), `ponytail` (`full` or `ultra`, default `full`)
 
 It will not commit to `main`, push, stash, or add a `Co-Authored-By` trailer.
-A second failure on the same task stops the run. On Claude, that one fix starts a new implementer one tier higher: Haiku 5.5, then Sonnet 5.5, then Opus 5.5. Opus 5.5 stays Opus 5.5. Effort stays xhigh. Grok is already the strongest model, so the Grok fix resumes the same agent.
+A second failure on the same task stops the run. The fix round resumes the same Grok agent. The plan also records a Claude tier per task (Haiku 5.5, Sonnet 5.5, Opus 5.5) and a one-tier-up retry rule, but no Claude Code runner exists yet, so nothing acts on those fields.
 
 ## Referenced plugins
 
@@ -80,8 +80,8 @@ Two pieces of the pipeline are separate plugins — install them too:
 - **debate backend** — the `/debate:*` commands the `debate` skill drives:
   `/plugin marketplace add STRML/cc-debate` → `/plugin install debate@cc-debate`.
 
-And the planning engine the whole flow wraps: the **superpowers** plugin (`/brainstorm`,
-writing-plans). See [`WORKFLOW.md`](./WORKFLOW.md) for how it all fits together.
+And the planning engine the whole flow wraps: the **superpowers** plugin (`superpowers:brainstorming`,
+`superpowers:writing-plans`). See [`WORKFLOW.md`](./WORKFLOW.md) for how it all fits together.
 
 ## See also
 
@@ -107,8 +107,9 @@ so they work wherever the plugin is installed.
   distilled from [`ciembor/agent-rules-books`](https://github.com/ciembor/agent-rules-books)
   (Maciej Ciemborowicz).
 - [`session-learnings`](./skills/session-learnings/), [`compound`](./skills/compound/), and
-  [`/init`](./commands/init.md) are **vendored verbatim** from STRML's `cc-skills`
-  (MIT, © Samuel Reed) — each carries an attribution header, otherwise unmodified.
+  [`/init`](./commands/init.md) are **vendored** from STRML's `cc-skills`
+  (MIT, © Samuel Reed). Each carries an attribution header that names its local
+  delta (the host-file block). Everything else is upstream text.
 - [`/update-codemaps`](https://github.com/STRML/cc-codemaps) is **referenced** as the
   `cc-codemaps` plugin — Sam maintains it upstream.
 

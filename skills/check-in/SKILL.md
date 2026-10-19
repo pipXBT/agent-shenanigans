@@ -1,6 +1,6 @@
 ---
 name: check-in
-description: "Use to rigorously confirm a goal or completion condition is ACTUALLY met before declaring work done — the context-verifying alternative to Claude Code's built-in /goal evaluator (which judges only the conversation transcript). A 3-judge Haiku advisory panel (Literalist / Verifier / Skeptic) weighs the claim against real evidence — a check command's output plus repo state — then an Opus 4.8 overseer reconciles the panel and issues the authoritative MET/NOT_MET verdict with actionable gaps. Triggers: 'is the goal met', 'verify the goal', 'check goal completion', 'confirm the goal is done', 'goal gate', 'run check-in'."
+description: "Use to rigorously confirm a goal or completion condition is ACTUALLY met before declaring work done — the context-verifying alternative to Claude Code's built-in /goal evaluator (which judges only the conversation transcript). A 3-judge Haiku advisory panel (Literalist / Verifier / Skeptic) weighs the claim against real evidence — a check command's output plus repo state — then an Opus overseer reconciles the panel and issues the authoritative MET/NOT_MET verdict with actionable gaps. Triggers: 'is the goal met', 'verify the goal', 'check goal completion', 'confirm the goal is done', 'goal gate', 'run check-in'."
 ---
 
 # check-in — context-verified goal-completion gate
@@ -9,7 +9,7 @@ Confirm a goal is *actually* met, with evidence — not just because the transcr
 claims it. This is the rigorous companion to the built-in `/goal` command: `/goal`'s
 evaluator reads only the conversation; `check-in` runs a check command and reads
 the repo, has three judges weigh in, then an overseer renders the authoritative
-verdict. On Claude Code the panel is Haiku and the overseer is Opus 4.8. Spawn is **Host**.
+verdict. On Claude Code the panel is Haiku and the overseer is Opus. Spawn is **Host**.
 
 Use this when completion is *claimed* and a wrong "done" is costly: before a handoff,
 before a merge, before clearing a goal. It renders a verdict — it does **not** loop
@@ -23,7 +23,7 @@ at the claimed finish line for a context-verified second opinion.
 
 Same evidence bundle, same three panel judges, same overseer. Only the spawn differs.
 
-- **Claude Code.** Use the Agent tool. Panel: `model: haiku`. Overseer: `model: opus` (Opus 4.8). Spawn all three panelists in one response.
+- **Claude Code.** Use the Agent tool. Panel: `model: haiku`. Overseer: `model: opus` (latest Opus). Spawn all three panelists in one response.
 - **Grok Build.** Use `spawn_subagent` with `background: true`. Omit `subagent_type`. Do not pass `model`; this tool has no model argument, so the panel and the overseer use the session model. Collect them with `get_command_or_subagent_output`.
 
 ## Inputs (the calling agent / orchestrator supplies)
@@ -55,7 +55,7 @@ it does not decide — its votes and gaps are input to the overseer (Step 4).
 > **Why in-process judges and not `/debate` / acpx:** the `/debate` panel runs on
 > acpx, which depends on external agent CLIs that aren't always installed (and are
 > broken in some environments). In-process subagents are the portable substitute.
-> Claude Code can pin a cheap panel and an Opus 4.8 overseer. Grok Build cannot pin
+> Claude Code can pin a cheap panel and an Opus overseer. Grok Build cannot pin
 > a model on `spawn_subagent`.
 
 **Judge A — Literalist:**
@@ -92,10 +92,10 @@ the overseer. A judge that errored or returned unparseable output counts as a NO
 abstention; carry that (and the degraded panel) into the overseer's bundle so it can
 weigh the panel accordingly.
 
-### 4. Convene the overseer — one Opus 4.8 judge (the deciding vote)
+### 4. Convene the overseer — one Opus judge (the deciding vote)
 
 Spawn one overseer using the spawn in **Host**. On Claude Code that is `model: opus`
-(Opus 4.8). Give it: the condition, the
+(latest Opus). Give it: the condition, the
 full evidence bundle, the panel tally from Step 3, and all three judges' raw returns
 (votes, confidences, reasons, gaps). The overseer has **final say in both directions** —
 it may ratify the panel or overturn it either way.

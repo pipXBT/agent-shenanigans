@@ -1,7 +1,7 @@
 # My Claude Code workflow
 
 This is how I run any non-trivial change in Claude Code, end to end. The idea in
-one line: **[superpowers](https://github.com/anthropics/claude-code) does the
+one line: **[superpowers](https://github.com/obra/superpowers) does the
 thinking — brainstorm, plan, execute — and the skills in this repo wrap that core
 in a `debate → build → clean → map → capture` loop.** Everything here installs as one
 Claude Code plugin (plus two referenced plugins — codemaps and the debate backend).
@@ -13,7 +13,7 @@ If you only read one thing, read the pipeline table.
 | # | Stage | Invoke | When |
 |---|-------|--------|------|
 | 0 | **Bootstrap** | `/init` | First time in a new repo — writes `CLAUDE.md` + a language-detected `.devcontainer`. |
-| 1 | **Think** | superpowers `/brainstorm` → writing-plans | Any non-trivial change: turn an idea into a design, then a task-by-task plan. |
+| 1 | **Think** | `superpowers:brainstorming` → `superpowers:writing-plans` | Any non-trivial change: turn an idea into a design, then a task-by-task plan. |
 | 2 | **Pressure-test** | `/debate:all` | Send the plan (or a stubborn bug) to a **Grok + ChatGPT + Claude** reviewer panel *before* writing code. They argue out contradictions and return `APPROVED` / `REVISE`. |
 | 3 | **Build** | superpowers subagent execution · ultracode Workflow | Execute the approved plan. |
 | 4 | **Clean** | `/code-cleanup` | Right after the build lands — dedup, dead code, weak types, dead paths, AI slop, run by worktree-isolated forks so nothing collides. |
@@ -28,7 +28,7 @@ starter `CLAUDE.md` (commands + conventions), and scaffolds a `.devcontainer`
 with a base image chosen from the detected language. I use this instead of
 Claude's built-in `/init`.
 
-**1 · Think (superpowers)** — `/brainstorm` refines an idea into a design spec;
+**1 · Think (superpowers)** — `superpowers:brainstorming` refines an idea into a design spec;
 writing-plans turns the spec into bite-sized, testable tasks. This is the one
 stage that stays entirely in superpowers — it's the engine, not something this
 repo replaces.
@@ -62,16 +62,17 @@ map that loads at session start). Do this after cleanup so the maps reflect the
 
 **✓ · `check-in`** — a completion gate you can drop anywhere. It runs a check
 command, reads repo state, and has three Haiku judges (Literalist / Verifier /
-Skeptic) vote on whether the goal is *actually* met, returning actionable gaps.
+Skeptic) advise an Opus overseer, which decides whether the goal is *actually*
+met and returns actionable gaps.
 
 ## Mine vs borrowed
 
 | Tool | Origin |
 |------|--------|
 | `debate`, `code-cleanup`, `skill-postmortem`, `check-in` | Mine (some forked from STRML, then developed further). |
-| `session-learnings`, `compound`, `/init` | [STRML/cc-skills](https://github.com/STRML/cc-skills) — vendored verbatim (MIT), credited in each file. |
+| `session-learnings`, `compound`, `/init` | [STRML/cc-skills](https://github.com/STRML/cc-skills) — vendored (MIT); each file credits upstream and names its local delta. |
 | `/update-codemaps` | [STRML/cc-codemaps](https://github.com/STRML/cc-codemaps) — referenced as a plugin (not vendored). |
-| `/brainstorm`, writing-plans, subagent execution | Anthropic **superpowers** plugin — the planning/execution engine this loop wraps. |
+| `brainstorming`, `writing-plans`, `subagent-driven-development` | Jesse Vincent's ([obra](https://github.com/obra)) **superpowers** plugin — the planning/execution engine this loop wraps. |
 
 ## Install
 
@@ -88,8 +89,9 @@ Skeptic) vote on whether the goal is *actually* met, returning actionable gaps.
 /plugin marketplace add STRML/cc-debate
 /plugin install debate@cc-debate
 
-# 4. superpowers (the planning/execution engine) — install per its own instructions,
-#    then use /brainstorm + writing-plans
+# 4. superpowers (the planning/execution engine). It ships skills, not commands:
+#    superpowers:brainstorming, superpowers:writing-plans
+/plugin install superpowers@claude-plugins-official
 ```
 
 Restart Claude Code after installing plugins so new skills and commands load.

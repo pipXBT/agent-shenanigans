@@ -23,9 +23,9 @@ plugin (`.claude-plugin/plugin.json`) and expose it as a one-plugin marketplace
 (`.claude-plugin/marketplace.json`, `source: "./"`) so
 `/plugin marketplace add pipXBT/agent-shenanigans` works.
 
-A few skills/commands are **vendored verbatim** from
+A few skills/commands are **vendored** from
 [STRML/cc-skills](https://github.com/STRML/cc-skills) with an attribution header
-(`session-learnings`, `compound`, `/init`).
+that names the local delta (`session-learnings`, `compound`, `/init`).
 
 ## Bundled scripts (important)
 
