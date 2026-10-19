@@ -394,8 +394,12 @@ fn plan_order() {
 }
 
 fn write_state() {
-    let W = this.git("write_state", #{ plan_hash: this.args.plan_hash, json: json_encode(this.state) });
-    check(same_json(field_of(W, "W", "state_json", "string"), this.state), "W.state_json: differs from the state written");
+    // The git agent copies the file back by hand; a copy that does not parse back gets one fresh agent.
+    for attempt in 0..2 {
+        let W = this.git("write_state", #{ plan_hash: this.args.plan_hash, json: json_encode(this.state) });
+        if same_json(field_of(W, "W", "state_json", "string"), this.state) { return; }
+    }
+    check(false, "W.state_json: differs from the state written");
 }
 
 fn state_ok(s, hash) {
@@ -437,16 +441,24 @@ fn restart_target(state, done) {
 
 // Fresh run or restart. Returns the ids done in an earlier run.
 fn run_state() {
-    let ST = this.git("read_state", #{ plan_hash: this.args.plan_hash });
-    let text = field_of(ST, "ST", "state_json", "string");
+    // Same hand-copy risk as write_state: a read that does not parse gets one fresh agent.
+    let ST = ();
+    let text = "";
+    let state = ();
+    for attempt in 0..2 {
+        ST = this.git("read_state", #{ plan_hash: this.args.plan_hash });
+        text = field_of(ST, "ST", "state_json", "string");
+        if text == "" { break; }
+        state = ();
+        try { state = parse_json(text); } catch { }
+        if type_of(state) == "map" { break; }
+    }
     let done = [];
     if text == "" {
         this.state = #{ plan_hash: this.args.plan_hash, run_start: field_of(ST, "ST", "head", "string"), tasks: #{} };
         this.write_state();
         return done;
     }
-    let state = ();
-    try { state = parse_json(text); } catch { }
     check(state_ok(state, this.args.plan_hash), "ST.state_json: not a run state for this plan");
     let R0 = this.git("snapshot", #{ base: state.run_start });
     check(field_of(R0, "R0", "base_is_ancestor", "bool"), "R0.base_is_ancestor: HEAD does not descend from run_start");

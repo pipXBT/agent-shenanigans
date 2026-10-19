@@ -91,6 +91,13 @@ State file `.git/agent-shenanigans/<plan_hash>.json`:
 - Only the `git` agent's `write_state` action writes the file, at the points §5
   names. Prompts for `implement`, `skeptic`, `review`, `verify-finding`, and
   `fix-review` never mention it or the aside folder.
+- The `git` agent copies `state_json` back by hand, and a long one-line copy
+  can come back short. So a `read_state` whose `state_json` is not `""` and does
+  not parse to an object, or a `write_state` whose `state_json` does not parse
+  to the object written, is repeated once with a new `git` agent before the stop
+  §5 names. Both checks compare parsed objects, never bytes. The Claude executor
+  writes the state indented (`JSON.stringify(state, null, 2)`); Grok writes it
+  compact.
 - A task is done only when its `receipt` is an ancestor of `HEAD`. A
   `Task-Id` trailer in a commit message never marks a task done.
 - Every run is a fresh run. Claude never passes `resumeFromRunId`; Grok never
