@@ -1,0 +1,139 @@
+# What each host (Claude Code, Grok Build) must have. Read by ./doctor.
+# `source` is the upstream GitHub repo of the marketplace that ships the plugin.
+# State is "enabled" or "absent"; omit a host's keys when the plugin has no
+# presence there. `pending_until` names a probe stamp that must exist before
+# doctor treats the declared state as binding.
+
+[[plugin]]
+name = "caveman"
+source = "JuliusBrussee/caveman"
+claude_id = "caveman@caveman"
+grok_name = "caveman"
+claude_state = "enabled"
+grok_state = "enabled"
+
+[[plugin]]
+name = "ponytail"
+source = "DietrichGebert/ponytail"
+claude_id = "ponytail@ponytail"
+grok_name = "ponytail"
+claude_state = "enabled"
+grok_state = "enabled"
+
+[[plugin]]
+name = "superpowers"
+source = "anthropics/claude-plugins-official"
+claude_id = "superpowers@claude-plugins-official"
+grok_name = "superpowers"
+claude_state = "enabled"
+grok_state = "enabled"
+
+[[plugin]]
+name = "superpowers-duplicate"
+source = "obra/superpowers-marketplace"
+claude_id = "superpowers@superpowers-marketplace"
+claude_state = "absent"
+
+[[plugin]]
+name = "cc-codemaps"
+source = "STRML/cc-codemaps"
+claude_id = "cc-codemaps@cc-codemaps"
+grok_name = "cc-codemaps"
+claude_state = "enabled"
+grok_state = "enabled"
+
+[[plugin]]
+name = "agent-shenanigans"
+source = "pipXBT/agent-shenanigans"
+claude_id = "agent-shenanigans@agent-shenanigans"
+grok_name = "agent-shenanigans"
+claude_state = "enabled"
+grok_state = "enabled"
+
+[[plugin]]
+name = "explanatory-output-style"
+source = "anthropics/claude-code"
+claude_id = "explanatory-output-style@claude-code-plugins"
+grok_name = "explanatory-output-style"
+claude_state = "absent"
+grok_state = "absent"
+
+[[plugin]]
+name = "explanatory-output-style-official"
+source = "anthropics/claude-plugins-official"
+claude_id = "explanatory-output-style@claude-plugins-official"
+claude_state = "absent"
+
+[[plugin]]
+name = "cc-debate"
+source = "STRML/cc-debate"
+claude_id = "debate@cc-debate"
+grok_name = "debate"
+claude_state = "absent"
+grok_state = "absent"
+pending_until = "seat-dry-run"
+
+# Symlinks doctor owns: `path` points at `target`, which lives in this repo.
+[[link]]
+path = "~/.grok/workflows/adversarial-verification.rhai"
+target = "workflows/adversarial-verification.rhai"
+
+[[link]]
+path = "~/.claude/rules/agent-shenanigans.md"
+target = "rules/modes.md"
+
+# Stale user-level copies that shadow the declared source. doctor moves them
+# aside; it never deletes. `after_probe` ones move only once the probe passes.
+[retire]
+paths = [
+  "~/.grok/skills/compound",
+  "~/.grok/skills/session-learnings",
+  "~/.grok/skills/parallel-orchestrate",
+  "~/.grok/skills/code-cleanup.pre-fork-backup.md",
+  "~/.grok/skills/code-cleanup",
+  "~/.grok/skills/debate",
+  "~/.claude/skills/compound",
+  "~/.claude/skills/session-learnings",
+  "~/.claude/commands/init.md",
+]
+after_probe = [
+  "~/.grok/skills/model-policy",
+  "~/.grok/skills/debate-panel",
+]
+
+# path = "<repo file>:<heading that must exist there>"; retired only when the
+# repo file carries the heading.
+[gated]
+"~/.claude/commands/code-cleanup.md" = "skills/code-cleanup/SKILL.md:## Hard exclusions"
+
+[[setting]]
+file = "$XDG_CONFIG_HOME/caveman/config.json"
+format = "json"
+key = "defaultMode"
+value = "ultracave"
+
+[[setting]]
+file = "$XDG_CONFIG_HOME/ponytail/config.json"
+format = "json"
+key = "defaultMode"
+value = "full"
+
+[[setting]]
+file = "~/.grok/config.toml"
+format = "toml"
+table = "models"
+key = "default"
+value = "grok-4.7"
+
+[[setting]]
+file = "~/.grok/config.toml"
+format = "toml"
+table = "models"
+key = "default_reasoning_effort"
+value = "xhigh"
+
+[[setting]]
+file = "~/.claude/settings.json"
+format = "json"
+key = "effortLevel"
+value = "xhigh"
