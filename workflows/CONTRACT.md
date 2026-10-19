@@ -406,6 +406,16 @@ at stage `done`.
   passes when `result.ok`, `result.stage`, `result.task` (when `expect.task`
   is given), and each listed outcome match.
 - Both executors run every case and must produce the same results.
+  - Claude: `node --test tests/workflows/` runs every case through
+    `workflows/fixture/harness.mjs`.
+  - Grok: `python3 workflows/fixture/run_grok_case.py CASE.json [--rhai PATH]`
+    runs one case through headless `~/.grok/bin/grok`, whose `workflow` tool
+    runs the script with `validate_only: true`. The tool truncates a finished
+    result, so the runner runs a temporary copy of the script with the case's
+    args embedded and the result thrown. It prints the result JSON, then
+    `PASS` or `FAIL` against `expect` (`ok`, `stage`, `task`, outcomes, and
+    `summary` as a substring). It calls Grok, so it stays out of the test
+    suite.
 
 ## 9. Result
 
