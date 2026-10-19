@@ -149,8 +149,11 @@ def read_grok(home: Path, inspect_text: str) -> HostState:
     return HostState("grok", plugins, tuple(skills), _own(home, "grok"))
 
 
-def run_grok_inspect(grok_bin: Path, cwd: Path) -> str:
-    return subprocess.run([str(grok_bin), "inspect"], cwd=cwd, capture_output=True, text=True, check=True).stdout
+def run_grok_inspect(grok_bin: Path, cwd: Path, timeout: float = 60.0) -> str:
+    # ponytail: kills only the direct child; a grandchild that outlives it is left running. killpg if that bites.
+    return subprocess.run(
+        [str(grok_bin), "inspect"], cwd=cwd, capture_output=True, text=True, check=True, timeout=timeout
+    ).stdout
 
 
 def _declared(state: HostState | None, key: str | None, want: str | None) -> PluginState | None:

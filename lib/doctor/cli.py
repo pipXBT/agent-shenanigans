@@ -70,7 +70,10 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
         return exit_code(errors)
 
     claude = attempt("claude", "claude plugin state", lambda: read_claude(home))
-    grok = attempt("grok", f"{grok_bin} inspect", lambda: read_grok(home, run_grok_inspect(grok_bin, home)))
+    grok = attempt(
+        "grok", f"{grok_bin} inspect",
+        lambda: read_grok(home, run_grok_inspect(grok_bin, home, float(env.get("DOCTOR_GROK_TIMEOUT", "60")))),
+    )
     if args.shas:
         if errors:
             print(render(errors), end="")

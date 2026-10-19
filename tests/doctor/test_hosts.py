@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -12,6 +13,7 @@ from doctor.hosts import (
     parse_grok_inspect,
     read_claude,
     read_grok,
+    run_grok_inspect,
     user_entries,
 )
 
@@ -146,6 +148,17 @@ class ReadGrok(FakeHome):
         self.assertRegex(before, rf"^{head}\+[0-9a-f]{{12}}$")
         self.assertEqual(before.split("+")[0], after.split("+")[0])
         self.assertNotEqual(before, after)
+
+
+class RunGrokInspect(FakeHome):
+    def test_run_grok_inspect_times_out(self):
+        grok = self.home / "grok"
+        grok.write_text("#!/bin/bash\nexec sleep 5\n")
+        grok.chmod(0o755)
+        start = time.monotonic()
+        with self.assertRaises(subprocess.TimeoutExpired):
+            run_grok_inspect(grok, self.home, timeout=0.5)
+        self.assertLess(time.monotonic() - start, 2)
 
 
 class UserEntries(FakeHome):

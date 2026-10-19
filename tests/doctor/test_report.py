@@ -289,7 +289,7 @@ class Render(unittest.TestCase):
 
 
 class Cli(unittest.TestCase):
-    def run_cli(self, grok_script):
+    def run_cli(self, grok_script, extra_env=None):
         """Run the CLI on an empty home; `grok_script` None means no grok binary at all."""
         with tempfile.TemporaryDirectory() as d:
             home = Path(d)
@@ -298,10 +298,19 @@ class Cli(unittest.TestCase):
                 write(grok, grok_script)
                 grok.chmod(0o755)
             out = io.StringIO()
-            env = {"HOME": str(home), "AGENT_SHENANIGANS_HOME": str(home), "GROK_BIN": str(grok), "PATH": os.environ["PATH"]}
+            env = {"HOME": str(home), "AGENT_SHENANIGANS_HOME": str(home), "GROK_BIN": str(grok), "PATH": os.environ["PATH"],
+                   **(extra_env or {})}
             with contextlib.redirect_stdout(out):
                 code = cli.main([], env)
         return code, out.getvalue()
+
+    def test_hung_grok_inspect_exits_2(self):
+        start = time.monotonic()
+        code, out = self.run_cli("#!/bin/sh\nexec sleep 5\n", {"DOCTOR_GROK_TIMEOUT": "0.5"})
+        self.assertLess(time.monotonic() - start, 4)
+        self.assertEqual(code, 2)
+        self.assertIn("could-not-check", out)
+        self.assertIn("TimeoutExpired", out)
 
     def test_inspect_failure_exits_2(self):
         code, out = self.run_cli("#!/bin/sh\necho garbage\n")
