@@ -15,14 +15,16 @@ copied here, so nothing here can go stale against its source.
 
 ## Install
 
-```
+```sh
 git clone https://github.com/pipXBT/agent-shenanigans.git
 cd agent-shenanigans
-./doctor           # report drift against stack.toml (exit 0 clean, 1 drift, 2 could not check)
-./doctor --fix     # patch what doctor owns, print the plugin commands to run
+./doctor
+./doctor --fix
 ```
 
-`doctor` never deletes (it moves to `~/.agent-shenanigans-backup/<run-id>/`) and never runs
+`./doctor` reports drift against `stack.toml` (exit 0 clean, 1 drift, 2 could not check).
+`./doctor --fix` patches what doctor owns and prints the plugin commands to run. Run both from
+the checkout you keep; doctor's symlinks point into it. `doctor` never deletes (it moves to `~/.agent-shenanigans-backup/<run-id>/`) and never runs
 `claude plugin` or `grok plugin`. The full day-one sequence, with the probes, is in
 [`WORKFLOW.md`](./WORKFLOW.md#install). Restart the host after installing plugins.
 
