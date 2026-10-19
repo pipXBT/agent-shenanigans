@@ -51,6 +51,11 @@ runs `workflows/adversarial-verification.rhai`.
 Never resume a run. If a run stops or is killed, a restart is a new run of this skill with a new
 `run_nonce`; the executor reads the saved run state itself (`CONTRACT.md` section 3).
 
+A restart resets `HEAD` to the newest receipt (`reset_keep`), so any commit above it is dropped from
+the branch without a word. To change the plan between runs, edit a copy outside the repo and pass that
+path; never commit a plan change on the run's branch. A changed plan has a new `plan_hash`, so its run
+state starts empty unless the old state file is copied to the new hash.
+
 ## `--probe`
 
 Checks, once per host from a session in another repo, that an agent this repo starts gets the modes
