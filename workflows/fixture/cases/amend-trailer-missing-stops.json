@@ -18,6 +18,7 @@
     ],
     "review": false,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-amend-trailer-missing-stops",
     "tasks": [
       {
@@ -269,6 +270,7 @@
         "action": "amend_trailer",
         "trailer": "Task-Id: 0123456789ab/1"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

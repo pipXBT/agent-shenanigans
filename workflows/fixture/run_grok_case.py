@@ -11,7 +11,7 @@ the thrown JSON comes back whole in the error text. The tool call and its result
 are read from Grok's session log, not from the model's reply.
 
 Prints the result JSON, then PASS or FAIL against the case's expect: ok, stage,
-task (when given), each outcome, and summary as a substring (when given).
+task and level (when given), each outcome, and summary as a substring (when given).
 Exit status: 0 PASS, 1 FAIL, 2 no result.
 """
 import argparse
@@ -53,7 +53,7 @@ def tool_call(sid):
 
 
 def mismatches(r, exp):
-    bad = [f"{k}={r.get(k)!r}, want {exp[k]!r}" for k in ("ok", "stage", "task") if k in exp and r.get(k) != exp[k]]
+    bad = [f"{k}={r.get(k)!r}, want {exp[k]!r}" for k in ("ok", "stage", "task", "level") if k in exp and r.get(k) != exp[k]]
     got = {t.get("id"): t.get("outcome") for t in r.get("tasks", [])}
     bad += [f"outcome[{i}]={got.get(i)!r}, want {o!r}" for i, o in exp.get("outcomes", {}).items() if got.get(i) != o]
     if "summary" in exp and exp["summary"] not in r.get("summary", ""):

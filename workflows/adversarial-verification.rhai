@@ -285,7 +285,12 @@ fn check_args() {
     if !["full", "ultra"].contains(a.ponytail) { bad.push("ponytail"); }
     if !tasks_ok(a.tasks) { bad.push("tasks"); }
     check(bad.len() == 0, "args: missing or wrong type: " + names(bad));
+    check(a.level == () || ["lite", "full"].contains(a.level), "args.level: " + json_encode(a.level) + " is not \"lite\" or \"full\"");
+    this.level = a.level ?? "lite";
 }
+
+// The teeth value of a task that did not run teeth (CONTRACT.md section 5, Levels).
+fn skipped(kind) { if this.level == "lite" { "skipped:lite" } else { "skipped:" + kind } }
 
 // P1/P2: resolve the branch, refuse the default branch, require a clean tree.
 fn preflight() {
@@ -553,35 +558,38 @@ fn attempt(t, B, pre, failure) {
         this.set_result("teeth", "skipped:" + t.kind);
     }
 
-    check(S2.ok == true, "S2.ok: " + text_of(S2.error));
-    let sk = this.call_agent("skeptic", this.skeptic_prompt(t, name_status, field_of(S2, "S2", "diff", "string"), changed));
-    let sk = if type_of(sk) == "map" { sk } else { #{} };
-    check(sk.verdict == "pass", "skeptic.verdict: " + json_encode(sk.verdict) + ": " + text_of(sk.evidence));
+    // Steps 3 and 4 run at level full only.
+    if this.level == "full" {
+        check(S2.ok == true, "S2.ok: " + text_of(S2.error));
+        let sk = this.call_agent("skeptic", this.skeptic_prompt(t, name_status, field_of(S2, "S2", "diff", "string"), changed));
+        let sk = if type_of(sk) == "map" { sk } else { #{} };
+        check(sk.verdict == "pass", "skeptic.verdict: " + json_encode(sk.verdict) + ": " + text_of(sk.evidence));
 
-    if t.kind == "code" {
-        let P = [];
-        for p in changed { if listed(p, t.files) && !listed(p, t.tests) { P.push(p); } }
-        check(P.len() > 0, "S2.name_status: no production path in files changed");
-        this.set_result("teeth", "ran");
-        let TR = this.git("teeth_revert", #{ base: pre, paths: P });
-        let TT = this.call_agent("test", this.test_prompt());
-        let RS = this.git("teeth_restore", #{});
-        try {
-            check(field_of(RS, "RS", "head", "string") == H, "RS.head: HEAD moved during teeth");
-            check(field_of(RS, "RS", "tree", "string") == T, "RS.tree: the tree changed during teeth");
-            check(tracked_clean(RS, "RS"), "RS.porcelain: tracked changes remain after the teeth restore");
-        } catch (e) {
-            throw as_stop(e);
+        if t.kind == "code" {
+            let P = [];
+            for p in changed { if listed(p, t.files) && !listed(p, t.tests) { P.push(p); } }
+            check(P.len() > 0, "S2.name_status: no production path in files changed");
+            this.set_result("teeth", "ran");
+            let TR = this.git("teeth_revert", #{ base: pre, paths: P });
+            let TT = this.call_agent("test", this.test_prompt());
+            let RS = this.git("teeth_restore", #{});
+            try {
+                check(field_of(RS, "RS", "head", "string") == H, "RS.head: HEAD moved during teeth");
+                check(field_of(RS, "RS", "tree", "string") == T, "RS.tree: the tree changed during teeth");
+                check(tracked_clean(RS, "RS"), "RS.porcelain: tracked changes remain after the teeth restore");
+            } catch (e) {
+                throw as_stop(e);
+            }
+            check(field_of(TR, "TR", "head", "string") == H, "TR.head: the teeth revert did not run on HEAD");
+            let te = if type_of(TT) == "map" { TT.test_exit } else { () };
+            check(type_of(te) == "i64" && te != 0, "TT.test_exit: " + json_encode(te) + ", the tests do not fail without the change");
+        } else if t.kind == "docs" {
+            let bad = "";
+            for p in changed {
+                if bad == "" && (!is_docs(p) || listed(p, t.tests) || matches(p, a.rules.test_globs)) { bad = p; }
+            }
+            check(bad == "", "S2.name_status: " + bad + " is not a documentation path");
         }
-        check(field_of(TR, "TR", "head", "string") == H, "TR.head: the teeth revert did not run on HEAD");
-        let te = if type_of(TT) == "map" { TT.test_exit } else { () };
-        check(type_of(te) == "i64" && te != 0, "TT.test_exit: " + json_encode(te) + ", the tests do not fail without the change");
-    } else if t.kind == "docs" {
-        let bad = "";
-        for p in changed {
-            if bad == "" && (!is_docs(p) || listed(p, t.tests) || matches(p, a.rules.test_globs)) { bad = p; }
-        }
-        check(bad == "", "S2.name_status: " + bad + " is not a documentation path");
     }
 
     let G1 = this.call_agent("test", this.test_prompt());
@@ -653,7 +661,7 @@ fn begin(id) {
 
 // Step 1, then at most two attempts: Grok retries once, with a new agent on the same model.
 fn run_task(t, B) {
-    this.results.push(#{ id: t.id, outcome: "fail", attempts: 0, teeth: "skipped:" + t.kind, model: "" });
+    this.results.push(#{ id: t.id, outcome: "fail", attempts: 0, teeth: this.skipped(t.kind), model: "" });
     let pre = this.begin(t.id);
     let failure = "";
     let passed = false;
@@ -662,7 +670,7 @@ fn run_task(t, B) {
         n += 1;
         this.set_result("attempts", n);
         this.set_result("model", global::GROK_MODEL);
-        this.set_result("teeth", "skipped:" + t.kind);
+        this.set_result("teeth", this.skipped(t.kind));
         try {
             this.attempt(t, B, pre, failure);
             passed = true;
@@ -796,27 +804,30 @@ fn run_all() {
     for t in order {
         this.current = t.id;
         if done.contains(t.id) {
-            this.results.push(#{ id: t.id, outcome: "done-before", attempts: 0, teeth: "skipped:" + t.kind, model: "" });
+            this.results.push(#{ id: t.id, outcome: "done-before", attempts: 0, teeth: this.skipped(t.kind), model: "" });
         } else {
             this.run_task(t, B);
         }
     }
     this.current = ();
-    this.stage = "review";
-    phase("Review");
-    let note = if this.args.review == false { "" } else { "; " + this.review_stage(B) };
+    let note = "";
+    if this.level == "full" {
+        this.stage = "review";
+        phase("Review");
+        note = if this.args.review == false { "" } else { "; " + this.review_stage(B) };
+    }
     this.stage = "done";
     note
 }
 
-let st = #{ args: args, stage: "preflight", current: (), results: [], used: #{}, state: () };
+let st = #{ args: args, stage: "preflight", current: (), results: [], used: #{}, state: (), level: () };
 let result = ();
 try {
     let note = st.run_all();
-    result = #{ ok: true, stage: "done", task: (), summary: st.results.len().to_string() + " tasks passed" + note, tasks: st.results };
+    result = #{ ok: true, stage: "done", task: (), summary: st.results.len().to_string() + " tasks passed" + note, tasks: st.results, level: st.level };
 } catch (e) {
     if type_of(e) != "map" || (e.kind != "fail" && e.kind != "stop") { throw e; }
-    result = #{ ok: false, stage: st.stage, task: st.current, summary: e.why, tasks: st.results };
+    result = #{ ok: false, stage: st.stage, task: st.current, summary: e.why, tasks: st.results, level: st.level };
 }
 // Grok's agent call reports no model and takes no effort (effort xhigh is set at launch).
 result.summary += "; model and effort: requested only";

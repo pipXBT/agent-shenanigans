@@ -18,6 +18,7 @@
     ],
     "review": false,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-docs-touches-code-fails",
     "tasks": [
       {
@@ -382,6 +383,7 @@
         "action": "reset_keep",
         "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

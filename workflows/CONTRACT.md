@@ -40,7 +40,8 @@ spec §4, `docs/superpowers/specs/2026-10-19-control-copy-design.md`.
 | `branch` | str, optional | Branch to run on. Default: the current branch. |
 | `rules` | `{high_risk: [glob], test_globs: [glob]}` | `high_risk` raises the complexity floor; `test_globs` splits review-fix paths. |
 | `forbid` | `[glob]` | Paths no task may touch. |
-| `review` | bool, default `true` | Run the review stage. |
+| `level` | `"lite"` \| `"full"`, default `"lite"` | Which steps run, §5 [Levels](#levels). Any other value stops the run at stage `preflight`. |
+| `review` | bool, default `true` | Run the review stage. Level `full` only. |
 | `ponytail` | `"full"` \| `"ultra"` | Ponytail level pasted into every prompt. |
 | `run_nonce` | str | New for every run. Pasted into every prompt. |
 | `tasks` | `[{id, title, files, tests, kind, kind_source, complexity}]` | From the plan parser, §2. |
@@ -187,6 +188,27 @@ trailing newlines removed.
 
 ## 5. Steps and predicates
 
+### Levels
+
+`level` picks which steps run. Absent or `null` means `lite`.
+
+| Step | `full` | `lite` |
+|---|---|---|
+| Preflight, plan stage (phases, deps, complexity), graph checks | yes | yes |
+| Step 1: pre-task SHA, clean tree | yes | yes |
+| Step 2: implement and its checks | yes | yes |
+| Step 3: skeptic | yes | no |
+| Step 4: teeth | by kind | no; every task records `teeth: "skipped:lite"` |
+| Step 5: gate (tests, lint when given, scope in `files` ∪ `tests`, outside `forbid`, branch) | yes | yes |
+| Step 6: `Task-Id` amend and receipt | yes | yes |
+| Failures: F1–F3 back to `pre`, then the retry rules | yes | yes |
+| Restart from receipts | yes | yes |
+| Review stage (§7) | when `review` is true | no; the run ends at stage `done` after the last task |
+
+At `lite` the kind changes nothing: it only picks the skeptic question and
+the step 4 check. `S2.diff` is not read, so a diff over the size limit does
+not fail the attempt.
+
 ### Preflight (stage `preflight`)
 
 - **P1** `snapshot("")` → `P1`. Resolved branch `B` := `branch` if given, else
@@ -256,9 +278,10 @@ Fail the attempt unless `S2.head != pre`, `S2.base_is_ancestor`, and
 `S2.porcelain == ""`. `H` := `S2.head`; `T` := `S2.tree`; `changed` := the
 paths in `S2.name_status`.
 
-**Step 3, skeptic.** One `skeptic` call with `S2.diff`, `S2.name_status`, the
-brief, `files`, `tests`, and `forbid`, plus the question for the kind. Fail
-the attempt without calling it unless `S2.ok` (the diff fit).
+**Step 3, skeptic (`full` only).** One `skeptic` call with `S2.diff`,
+`S2.name_status`, the brief, `files`, `tests`, and `forbid`, plus the
+question for the kind. Fail the attempt without calling it unless `S2.ok`
+(the diff fit).
 
 - `code`: does the diff do what the brief says, and nothing outside it?
 - `refactor`: is behaviour unchanged? If a path in `changed` is in `tests` or
@@ -268,7 +291,7 @@ the attempt without calling it unless `S2.ok` (the diff fit).
 
 Fail the attempt unless `skeptic.verdict == "pass"`.
 
-**Step 4, teeth by kind.**
+**Step 4, teeth by kind (`full` only).**
 
 - `code`: `P` := `changed` ∩ `files`, minus every path in `tests`. Fail the
   attempt when `P` is empty. Otherwise `teeth_revert(pre, P)` → `TR`, then
@@ -291,8 +314,8 @@ and, when `lint_cmd` is given, `G1.lint_exit == 0`. Then `snapshot(pre)` →
 `G2.name_status` is in `files` ∪ `tests`, and no path in `G2.name_status`
 matches a `forbid` glob.
 
-**Step 6, pass.** Requires step 2, the skeptic, the gate, and teeth unless
-the kind skips it.
+**Step 6, pass.** Requires step 2 and the gate; at `full`, also the skeptic,
+and teeth unless the kind skips it.
 
 - `snapshot("")` → `S6`. Fail the attempt unless `S6.head == G2.head` and
   `S6` is tracked-clean.
@@ -360,8 +383,8 @@ Then retry with a new `implement` agent, never the old one:
 
 ## 7. Review stage (stage `review`)
 
-Runs after every task passes, when `review` is true; otherwise the run ends
-at stage `done`.
+Runs after every task passes, at level `full` when `review` is true;
+otherwise the run ends at stage `done`.
 
 - `snapshot(run_start)` → `RV`; stop unless `RV.ok`.
 - Three `review` calls in one parallel batch, one per dimension, each given
@@ -401,10 +424,10 @@ at stage `done`.
 - A killed run is covered as a restart: the `restart-*` cases script the run
   state and `HEAD` an interrupted run leaves behind.
 - Case file `workflows/fixture/cases/<name>.json`:
-  `{name, args, fixture, expect: {ok, stage, task?, outcomes: {id: outcome}}}`.
+  `{name, args, fixture, expect: {ok, stage, task?, level?, outcomes: {id: outcome}}}`.
   The harness runs the executor with the case's `args` plus `fixture`. A case
-  passes when `result.ok`, `result.stage`, `result.task` (when `expect.task`
-  is given), and each listed outcome match.
+  passes when `result.ok`, `result.stage`, `result.task` and `result.level`
+  (each when given in `expect`), and each listed outcome match.
 - Both executors run every case and must produce the same results.
   - Claude: `node --test tests/workflows/` runs every case through
     `workflows/fixture/harness.mjs`.
@@ -413,23 +436,27 @@ at stage `done`.
     runs the script with `validate_only: true`. The tool truncates a finished
     result, so the runner runs a temporary copy of the script with the case's
     args embedded and the result thrown. It prints the result JSON, then
-    `PASS` or `FAIL` against `expect` (`ok`, `stage`, `task`, outcomes, and
-    `summary` as a substring). It calls Grok, so it stays out of the test
-    suite.
+    `PASS` or `FAIL` against `expect` (`ok`, `stage`, `task`, `level`,
+    outcomes, and `summary` as a substring). It calls Grok, so it stays out
+    of the test suite.
 
 ## 9. Result
 
 `{ok: bool, stage: "plan" | "preflight" | "task" | "review" | "done",
-task: str | null, summary: str, tasks: [{id, outcome: "pass" | "fail" |
-"done-before", attempts: int, teeth: "ran" | "skipped:<kind>", model: str}]}`
+task: str | null, summary: str, level: "lite" | "full" | null,
+tasks: [{id, outcome: "pass" | "fail" | "done-before", attempts: int,
+teeth: "ran" | "skipped:<kind>" | "skipped:lite", model: str}]}`
 
 - `ok` is true only with `stage: "done"`.
 - `stage` is where the run ended; `task` is the task it stopped in
   (`"review-fix"` for the fix), else `null`.
 - `summary` says why the run stopped, naming the failed predicate's report
   and field, or what passed.
+- `level` is the level the run used; `null` when the run stopped in the args
+  check.
 - `tasks` has one entry per task reached, in run order, with `review-fix`
   last when it ran. `attempts` counts `implement` (or `fix-review`) calls this
   run, `0` for `done-before`. `teeth` is `ran` when `teeth_revert` was called
-  in the last attempt, else `skipped:<kind>`. `model` is the model of the
-  last `implement` or `fix-review` call, `""` for `done-before`.
+  in the last attempt, else `skipped:lite` at level `lite` and
+  `skipped:<kind>` at `full`. `model` is the model of the last `implement`
+  or `fix-review` call, `""` for `done-before`.

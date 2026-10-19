@@ -81,6 +81,9 @@ async function stopping(f) {
 let stage = 'preflight'
 let current = null
 const results = []
+// "lite" or "full" once checkArgs passes (CONTRACT.md §5, Levels).
+let level = null
+const skipped = kind => level === 'lite' ? 'skipped:lite' : `skipped:${kind}`
 
 // The only place agent() is called. Fixture mode returns the label's next scripted output.
 async function call(label, prompt, opts = {}) {
@@ -144,6 +147,8 @@ function checkArgs() {
     strs(t.files) && strs(t.tests) && KINDS.includes(t.kind) && ['marker', 'derived'].includes(t.kind_source) &&
     (t.complexity == null || LEVELS.includes(t.complexity)))) bad.push('tasks')
   check(bad.length === 0, `args: missing or wrong type: ${bad.join(', ')}`)
+  check(a.level == null || ['lite', 'full'].includes(a.level), `args.level: ${JSON.stringify(a.level)} is not "lite" or "full"`)
+  level = a.level ?? 'lite'
 }
 
 // P1/P2: resolve the branch, refuse the default branch, require a clean tree.
@@ -355,28 +360,31 @@ async function attempt(t, B, state, pre, failure, r,
     r.teeth = `skipped:${t.kind}`
   }
 
-  check(S2.ok === true, `S2.ok: ${S2.error}`)
-  const sk = await call('skeptic', skepticPrompt(t, nameStatus, get(S2, 'S2', 'diff', 'string'), changed))
-  check(sk?.verdict === 'pass', `skeptic.verdict: ${sk?.verdict ?? 'missing'}: ${sk?.evidence ?? ''}`)
+  // Steps 3 and 4 run at level full only.
+  if (level === 'full') {
+    check(S2.ok === true, `S2.ok: ${S2.error}`)
+    const sk = await call('skeptic', skepticPrompt(t, nameStatus, get(S2, 'S2', 'diff', 'string'), changed))
+    check(sk?.verdict === 'pass', `skeptic.verdict: ${sk?.verdict ?? 'missing'}: ${sk?.evidence ?? ''}`)
 
-  if (t.kind === 'code') {
-    const P = changed.filter(p => listed(p, t.files) && !listed(p, t.tests))
-    check(P.length > 0, 'S2.name_status: no production path in files changed')
-    r.teeth = 'ran'
-    const TR = await git('teeth_revert', { base: pre, paths: P })
-    const TT = await call('test', testPrompt())
-    const RS = await git('teeth_restore', {})
-    await stopping(async () => {
-      check(get(RS, 'RS', 'head', 'string') === H, 'RS.head: HEAD moved during teeth')
-      check(get(RS, 'RS', 'tree', 'string') === T, 'RS.tree: the tree changed during teeth')
-      check(trackedClean(RS, 'RS'), 'RS.porcelain: tracked changes remain after the teeth restore')
-    })
-    check(get(TR, 'TR', 'head', 'string') === H, 'TR.head: the teeth revert did not run on HEAD')
-    check(Number.isInteger(TT?.test_exit) && TT.test_exit !== 0,
-      `TT.test_exit: ${TT?.test_exit}, the tests do not fail without the change`)
-  } else if (t.kind === 'docs') {
-    const bad = changed.find(p => !isDocs(p) || listed(p, t.tests) || matches(p, args.rules.test_globs))
-    check(!bad, `S2.name_status: ${bad} is not a documentation path`)
+    if (t.kind === 'code') {
+      const P = changed.filter(p => listed(p, t.files) && !listed(p, t.tests))
+      check(P.length > 0, 'S2.name_status: no production path in files changed')
+      r.teeth = 'ran'
+      const TR = await git('teeth_revert', { base: pre, paths: P })
+      const TT = await call('test', testPrompt())
+      const RS = await git('teeth_restore', {})
+      await stopping(async () => {
+        check(get(RS, 'RS', 'head', 'string') === H, 'RS.head: HEAD moved during teeth')
+        check(get(RS, 'RS', 'tree', 'string') === T, 'RS.tree: the tree changed during teeth')
+        check(trackedClean(RS, 'RS'), 'RS.porcelain: tracked changes remain after the teeth restore')
+      })
+      check(get(TR, 'TR', 'head', 'string') === H, 'TR.head: the teeth revert did not run on HEAD')
+      check(Number.isInteger(TT?.test_exit) && TT.test_exit !== 0,
+        `TT.test_exit: ${TT?.test_exit}, the tests do not fail without the change`)
+    } else if (t.kind === 'docs') {
+      const bad = changed.find(p => !isDocs(p) || listed(p, t.tests) || matches(p, args.rules.test_globs))
+      check(!bad, `S2.name_status: ${bad} is not a documentation path`)
+    }
   }
 
   const G1 = await call('test', testPrompt())
@@ -442,14 +450,14 @@ async function begin(id, state) {
 
 // Step 1, then up to three attempts, each one tier up from the last (high stays high).
 async function runTask(t, B, state) {
-  const r = { id: t.id, outcome: 'fail', attempts: 0, teeth: `skipped:${t.kind}`, model: '' }
+  const r = { id: t.id, outcome: 'fail', attempts: 0, teeth: skipped(t.kind), model: '' }
   results.push(r)
   const pre = await begin(t.id, state)
   let failure = null
   for (let tier = LEVELS.indexOf(t.complexity); r.attempts < 3; tier = Math.min(tier + 1, 2)) {
     r.attempts++
     r.model = CLAUDE_MODELS[LEVELS[tier]]
-    r.teeth = `skipped:${t.kind}`
+    r.teeth = skipped(t.kind)
     try {
       await attempt(t, B, state, pre, failure, r)
       r.outcome = 'pass'
@@ -562,22 +570,25 @@ async function run() {
   for (const t of order) {
     current = t.id
     if (done.has(t.id)) {
-      results.push({ id: t.id, outcome: 'done-before', attempts: 0, teeth: `skipped:${t.kind}`, model: '' })
+      results.push({ id: t.id, outcome: 'done-before', attempts: 0, teeth: skipped(t.kind), model: '' })
       continue
     }
     await runTask(t, B, state)
   }
   current = null
-  stage = 'review'
-  phase('Review')
-  const note = (args.review ?? true) ? `; ${await reviewStage(B, state)}` : ''
+  let note = ''
+  if (level === 'full') {
+    stage = 'review'
+    phase('Review')
+    if (args.review ?? true) note = `; ${await reviewStage(B, state)}`
+  }
   stage = 'done'
-  return { ok: true, stage, task: null, summary: `${results.length} tasks passed${note}`, tasks: results }
+  return { ok: true, stage, task: null, summary: `${results.length} tasks passed${note}`, tasks: results, level }
 }
 
 try {
   return await run()
 } catch (e) {
   if (!(e instanceof Fail)) throw e
-  return { ok: false, stage, task: current, summary: e.message, tasks: results }
+  return { ok: false, stage, task: current, summary: e.message, tasks: results, level }
 }

@@ -18,6 +18,7 @@
     ],
     "review": true,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-restart-receipt",
     "tasks": [
       {
@@ -184,6 +185,7 @@
         "action": "write_state"
       },
       "..."
-    ]
+    ],
+    "level": "full"
   }
 }

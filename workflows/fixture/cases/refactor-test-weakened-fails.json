@@ -18,6 +18,7 @@
     ],
     "review": false,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-refactor-test-weakened-fails",
     "tasks": [
       {
@@ -374,6 +375,7 @@
         "action": "reset_keep",
         "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

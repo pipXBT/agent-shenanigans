@@ -18,6 +18,7 @@
     ],
     "review": true,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-review-clean",
     "tasks": [
       {
@@ -327,6 +328,7 @@
         "action": "snapshot",
         "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

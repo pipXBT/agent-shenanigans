@@ -18,6 +18,7 @@
     ],
     "review": true,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-review-fix-test-path",
     "tasks": [
       {
@@ -561,6 +562,7 @@
       {
         "action": "write_state"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

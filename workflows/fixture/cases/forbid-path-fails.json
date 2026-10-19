@@ -19,6 +19,7 @@
     ],
     "review": false,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-forbid-path-fails",
     "tasks": [
       {
@@ -588,6 +589,7 @@
         "action": "reset_keep",
         "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

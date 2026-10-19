@@ -18,6 +18,7 @@
     ],
     "review": false,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-failed-restore-stops",
     "tasks": [
       {
@@ -254,6 +255,7 @@
       {
         "action": "teeth_restore"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

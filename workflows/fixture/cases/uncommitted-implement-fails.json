@@ -18,6 +18,7 @@
     ],
     "review": false,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-uncommitted-implement-fails",
     "tasks": [
       {
@@ -424,6 +425,7 @@
         "action": "write_state",
         "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

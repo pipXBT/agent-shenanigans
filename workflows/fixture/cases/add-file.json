@@ -18,6 +18,7 @@
     ],
     "review": false,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-add-file",
     "tasks": [
       {
@@ -361,6 +362,7 @@
         "action": "move_untracked_aside",
         "since": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
-    ]
+    ],
+    "level": "full"
   }
 }

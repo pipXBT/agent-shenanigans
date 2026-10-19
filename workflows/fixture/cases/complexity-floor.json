@@ -18,6 +18,7 @@
     ],
     "review": true,
     "ponytail": "full",
+    "level": "full",
     "run_nonce": "fixture-floor",
     "tasks": [
       {
@@ -126,6 +127,7 @@
         "action": "write_state"
       },
       "..."
-    ]
+    ],
+    "level": "full"
   }
 }

@@ -31,6 +31,7 @@ for (const file of readdirSync(CASES)) {
     assert.equal(result.ok, c.expect.ok, result.summary)
     assert.equal(result.stage, c.expect.stage, result.summary)
     if ('task' in c.expect) assert.equal(result.task, c.expect.task)
+    if ('level' in c.expect) assert.equal(result.level, c.expect.level)
     if (c.expect.summary) assert.ok(result.summary.includes(c.expect.summary), result.summary)
     for (const [id, outcome] of Object.entries(c.expect.outcomes ?? {}))
       assert.equal(result.tasks.find(t => t.id === id)?.outcome, outcome)
