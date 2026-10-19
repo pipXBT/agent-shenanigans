@@ -64,6 +64,9 @@ const SCHEMAS = {
   test: obj({ test_exit: { type: 'integer' }, lint_exit: { type: ['integer', 'null'] }, tail: STR }),
   implement: obj({ summary: STR, issues: list(STR) }),
   skeptic: obj({ verdict: { type: 'string', enum: ['pass', 'fail'] }, evidence: STR }),
+  review: obj({ findings: list(obj({ file: STR, issue: STR, severity: STR })) }),
+  'verify-finding': obj({ real: BOOL, evidence: STR }),
+  'fix-review': obj({ summary: STR }),
 }
 
 // A failed check. Inside a task attempt it fails the attempt; anywhere else it stops the run.
@@ -333,8 +336,10 @@ Return verdict "pass" only when the answer is clearly yes, else "fail", with the
 }
 
 // Steps 2-6 of one attempt (CONTRACT.md §5). A Fail fails the attempt; a Stop ends the run.
-async function attempt(t, B, state, pre, failure, r) {
-  await call('implement', implementPrompt(t, pre, failure), { model: r.model })
+// `work` is step 2's agent call; a task with kind null (review-fix) gets its kind after it.
+async function attempt(t, B, state, pre, failure, r,
+  work = () => call('implement', implementPrompt(t, pre, failure), { model: r.model })) {
+  await work()
   const S2 = await git('snapshot', { base: pre })
   const H = get(S2, 'S2', 'head', 'string')
   check(H !== pre, 'S2.head: equals the pre-task commit, nothing was committed')
@@ -343,6 +348,10 @@ async function attempt(t, B, state, pre, failure, r) {
   const T = get(S2, 'S2', 'tree', 'string')
   const nameStatus = get(S2, 'S2', 'name_status', 'string')
   const changed = changedPaths(nameStatus)
+  if (t.kind === null) {
+    t = { ...t, kind: changed.some(p => listed(p, t.files)) ? 'code' : 'test' }
+    r.teeth = `skipped:${t.kind}`
+  }
 
   check(S2.ok === true, `S2.ok: ${S2.error}`)
   const sk = await call('skeptic', skepticPrompt(t, nameStatus, get(S2, 'S2', 'diff', 'string'), changed))
@@ -419,15 +428,21 @@ async function restore(pre) {
   check(get(last[1], last[0], 'porcelain', 'string') === '', `${last[0]}.porcelain: the tree is not clean`)
 }
 
+// Step 1: the pre-task commit, recorded in the run state.
+async function begin(id, state) {
+  const S1 = await git('snapshot', { base: '' })
+  check(get(S1, 'S1', 'porcelain', 'string') === '', 'S1.porcelain: the tree is not clean')
+  const pre = get(S1, 'S1', 'head', 'string')
+  state.tasks[id] = { pre, receipt: null }
+  await writeState(state)
+  return pre
+}
+
 // Step 1, then up to three attempts, each one tier up from the last (high stays high).
 async function runTask(t, B, state) {
   const r = { id: t.id, outcome: 'fail', attempts: 0, teeth: `skipped:${t.kind}`, model: '' }
   results.push(r)
-  const S1 = await git('snapshot', { base: '' })
-  check(get(S1, 'S1', 'porcelain', 'string') === '', 'S1.porcelain: the tree is not clean')
-  const pre = get(S1, 'S1', 'head', 'string')
-  state.tasks[t.id] = { pre, receipt: null }
-  await writeState(state)
+  const pre = await begin(t.id, state)
   let failure = null
   for (let tier = LEVELS.indexOf(t.complexity); r.attempts < 3; tier = Math.min(tier + 1, 2)) {
     r.attempts++
@@ -444,6 +459,91 @@ async function runTask(t, B, state) {
     await restore(pre)
   }
   throw new Fail(`task ${t.id} failed 3 attempts; last: ${failure}`)
+}
+
+const DIMENSIONS = [
+  'the behaviour the plan claims, and the interactions between the tasks',
+  'failure paths, lost work, and a success report that is false',
+  'forbidden changes, and broken invariants named in the rules',
+]
+
+const reviewPrompt = (dimension, nameStatus, diff) => `You review the whole branch after a plan ran. Read the repo at ${args.repo} as needed; change nothing.
+Dimension: ${dimension}
+Rules: ${JSON.stringify(args.rules)}
+Forbidden paths: ${args.forbid.join(', ') || 'none'}
+
+Changed paths (git diff --name-status):
+${nameStatus}
+
+Diff from the run start:
+${diff}
+
+Report only real problems in your dimension. Each finding has file (a repo-relative path), issue, and severity. Return an empty list when there are none.`
+
+const verifyPrompt = (f, nameStatus, diff) => `A reviewer reported this finding about the branch. Try to prove it wrong. Read the repo at ${args.repo} as needed; change nothing.
+File: ${f.file}
+Issue: ${f.issue}
+Severity: ${f.severity}
+
+Changed paths (git diff --name-status):
+${nameStatus}
+
+Diff from the run start:
+${diff}
+
+Return real true only when the code confirms the problem, with the evidence (path, lines, what they do). Otherwise return real false.`
+
+const fixPrompt = (t, pre) => `Fix the confirmed review findings below. Work in ${args.repo}, on the current branch (at ${pre}).
+Files: ${t.files.join(', ') || 'none'}
+Tests: ${t.tests.join(', ') || 'none'}
+Change only those paths. Never touch paths matching: ${args.forbid.join(', ') || 'none'}
+Test command: ${args.test_cmd}${args.lint_cmd ? `\nLint command: ${args.lint_cmd}` : ''}
+
+Findings:
+${t.brief}
+
+Commit your work and leave the tree clean.`
+
+// CONTRACT.md §7: three reviewers, one verifier per finding, one fix round as task review-fix.
+async function reviewStage(B, state) {
+  const RV = await git('snapshot', { base: state.run_start })
+  const nameStatus = get(RV, 'RV', 'name_status', 'string')
+  const diff = get(RV, 'RV', 'diff', 'string')
+  const reviews = await parallel(DIMENSIONS.map(d => () => call('review', reviewPrompt(d, nameStatus, diff))))
+  check(reviews.every(rv => Array.isArray(rv?.findings) &&
+    rv.findings.every(f => isObj(f) && typeof f.file === 'string' && typeof f.issue === 'string')),
+  'review.findings: a reviewer returned no usable report')
+  const findings = reviews.flatMap(rv => rv.findings)
+  const verdicts = await parallel(findings.map(f => () => call('verify-finding', verifyPrompt(f, nameStatus, diff))))
+  check(verdicts.every(v => typeof v?.real === 'boolean' && typeof v.evidence === 'string'),
+    'verify-finding: a verifier returned no usable report')
+  const confirmed = findings.map((f, i) => ({ ...f, evidence: verdicts[i].evidence.trim(), real: verdicts[i].real }))
+    .filter(f => f.real && f.evidence !== '')
+  if (confirmed.length === 0) return `review: ${findings.length} findings, none confirmed`
+
+  const files = []
+  const tests = []
+  for (const p of new Set(confirmed.map(f => f.file)))
+    if (!matches(p, args.forbid)) (matches(p, args.rules.test_globs) ? tests : files).push(p)
+  check(files.length + tests.length > 0, 'review: every confirmed finding is in a forbidden path')
+  const t = { id: 'review-fix', title: 'Fix confirmed review findings', files, tests, kind: null,
+    brief: confirmed.map(f => `- ${f.file}: ${f.issue} (${f.severity}). Evidence: ${f.evidence}`).join('\n') }
+
+  current = t.id
+  const r = { id: t.id, outcome: 'fail', attempts: 0, teeth: 'skipped:test', model: OTHER_MODEL }
+  results.push(r)
+  const pre = await begin(t.id, state)
+  r.attempts = 1
+  try {
+    await attempt(t, B, state, pre, null, r, () => call('fix-review', fixPrompt(t, pre)))
+  } catch (e) {
+    if (!(e instanceof Fail) || e instanceof Stop) throw e
+    await restore(pre)
+    throw new Fail(`task ${t.id} failed; ${e.message}`)
+  }
+  r.outcome = 'pass'
+  current = null
+  return `review: fixed ${confirmed.length} confirmed findings`
 }
 
 async function run() {
@@ -468,9 +568,9 @@ async function run() {
   current = null
   stage = 'review'
   phase('Review')
-  check(!(args.review ?? true), 'review: the review stage is not built yet')
+  const note = (args.review ?? true) ? `; ${await reviewStage(B, state)}` : ''
   stage = 'done'
-  return { ok: true, stage, task: null, summary: `${results.length} tasks passed`, tasks: results }
+  return { ok: true, stage, task: null, summary: `${results.length} tasks passed${note}`, tasks: results }
 }
 
 try {
