@@ -387,7 +387,7 @@ at stage `done`.
 
 ## 8. Fixture
 
-`args.fixture = {outputs: {<label>: [output, ...]}, kill_after: <task id> | null}`
+`args.fixture = {outputs: {<label>: [output, ...]}}`
 
 - With a fixture present the executor never spawns. Each
   `call(label, ...)` returns that label's next output in order and records
@@ -397,9 +397,8 @@ at stage `done`.
   and the state writes, which are `git` calls like any other.
 - `git` outputs are full `GitReport` objects. Leaving a field out exercises
   the fail-closed path for any check that reads it.
-- `kill_after`: right after that task's receipt is written in step 6, the
-  executor ends as if killed: `{ok: false, stage: "task", task: <id>,
-  summary: "killed by fixture after <id>"}`.
+- A killed run is covered as a restart: the `restart-*` cases script the run
+  state and `HEAD` an interrupted run leaves behind.
 - Case file `workflows/fixture/cases/<name>.json`:
   `{name, args, fixture, expect: {ok, stage, task?, outcomes: {id: outcome}}}`.
   The harness runs the executor with the case's `args` plus `fixture`. A case

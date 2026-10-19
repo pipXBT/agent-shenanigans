@@ -256,8 +256,7 @@
           "findings": []
         }
       ]
-    },
-    "kill_after": null
+    }
   },
   "expect": {
     "ok": true,
