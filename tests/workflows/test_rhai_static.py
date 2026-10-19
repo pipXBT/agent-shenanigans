@@ -19,10 +19,14 @@ def src():
     return RHAI.read_text()
 
 
-def helper_body():
-    m = re.search(rf"^fn {HELPER}\(.*?^\}}", src(), re.S | re.M)
-    assert m, f"no fn {HELPER}"
+def fn_body(name):
+    m = re.search(rf"^fn {name}\(.*?^\}}", src(), re.S | re.M)
+    assert m, f"no fn {name}"
     return m.group(0), m.start(), m.end()
+
+
+def helper_body():
+    return fn_body(HELPER)
 
 
 def contract_labels():
@@ -49,7 +53,8 @@ class RhaiStaticTest(unittest.TestCase):
         calls = [m.start() for m in re.finditer(r"\bagent\(", src())]
         self.assertEqual(len(calls), 1, calls)
         _, start, end = helper_body()
-        self.assertTrue(start < calls[0] < end)
+        for c in calls + [m.start() for m in re.finditer(r"\bparallel\(", src())]:
+            self.assertTrue(start < c < end, c)
 
     def test_helper_passes_grok_model(self):
         self.assertTrue(re.search(r'(?m)^const GROK_MODEL = "grok-4\.7";$', src()))
@@ -63,6 +68,18 @@ class RhaiStaticTest(unittest.TestCase):
         rest = re.sub(r'"(?:\\.|[^"\\])*"', "", block)
         rest = re.sub(r"\b[a-z_]+\s*:", "", rest)
         self.assertRegex(rest, r"^[#{}\[\],\s]*$")
+
+    def test_review_fix_goes_through_gate(self):
+        # CONTRACT.md section 7: review-fix runs steps 1-6 through the task's own functions.
+        review, _, _ = fn_body("review_stage")
+        for step in ["this.begin(", "this.attempt(", "this.restore("]:
+            self.assertIn(step, review)
+        for own in ['"test"', '"teeth_revert"', '"amend_trailer"', '"write_state"']:
+            self.assertNotIn(own, review)
+        attempt, _, _ = fn_body("attempt")
+        self.assertIn('.call_agent("fix-review"', attempt)
+        run_task, _, _ = fn_body("run_task")
+        self.assertIn("this.begin(", run_task)
 
     def test_labels_match_contract(self):
         labels = contract_labels()

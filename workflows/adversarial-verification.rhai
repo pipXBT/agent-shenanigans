@@ -68,16 +68,26 @@ fn schema_for(label) {
         obj(#{ test_exit: #{ "type": "integer" }, lint_exit: #{ "type": ["integer", "null"] }, tail: s })
     } else if label == "implement" {
         obj(#{ summary: s, issues: list(s) })
+    } else if label == "review" {
+        obj(#{ findings: list(obj(#{ file: s, issue: s, severity: s })) })
+    } else if label == "verify-finding" {
+        obj(#{ real: b, evidence: s })
+    } else if label == "fix-review" {
+        obj(#{ summary: s })
     } else {
         obj(#{ verdict: #{ "type": "string", "enum": ["pass", "fail"] }, evidence: s })
     }
 }
 
 fn capability(label) {
-    if label == "git" || label == "test" { "execute" } else if label == "implement" { "all" } else { "read-only" }
+    if label == "git" || label == "test" { "execute" } else if label == "implement" || label == "fix-review" { "all" } else { "read-only" }
 }
 
-// The one place the host spawns an agent. Fixture mode returns the label's next scripted output.
+fn output_of(r) { if type_of(r) == "map" && r.success == true { r.output } else { () } }
+
+// The one place the host spawns agents. `prompt` is one prompt, or an array of prompts run as
+// one parallel batch (outputs in order, () for a failed slot). Fixture mode returns the label's
+// next scripted output for each prompt instead.
 fn call_agent(label, prompt) {
     let opts = #{
         label: label,
@@ -90,17 +100,30 @@ fn call_agent(label, prompt) {
     }
     let modes = global::MODES;
     modes.replace("`full`", "`" + this.args.ponytail + "`");
-    let full = modes + "\n\nRun nonce: " + this.args.run_nonce + "\n\n" + prompt;
+    let head = modes + "\n\nRun nonce: " + this.args.run_nonce + "\n\n";
+    let batch = type_of(prompt) == "array";
+    let prompts = if batch { prompt } else { [prompt] };
+    let outs = [];
     let fx = this.args.fixture;
-    if fx == () {
-        let r = agent(full, opts);
-        if type_of(r) == "map" && r.success == true { r.output } else { () }
+    if fx == () && batch {
+        let jobs = [];
+        for p in prompts {
+            let job = opts;
+            job.prompt = head + p;
+            jobs.push(job);
+        }
+        for r in parallel(jobs) { outs.push(output_of(r)); }
+    } else if fx == () {
+        outs.push(output_of(agent(head + prompt, opts)));
     } else {
-        let n = this.used[label] ?? 0;
-        this.used[label] = n + 1;
-        let outs = if type_of(fx) == "map" && type_of(fx.outputs) == "map" { fx.outputs[label] } else { () };
-        if type_of(outs) == "array" && n < outs.len() { outs[n] } else { () }
+        let given = if type_of(fx) == "map" && type_of(fx.outputs) == "map" { fx.outputs[label] } else { () };
+        for p in prompts {
+            let n = this.used[label] ?? 0;
+            this.used[label] = n + 1;
+            outs.push(if type_of(given) == "array" && n < given.len() { given[n] } else { () });
+        }
     }
+    if batch { outs } else { outs[0] }
 }
 
 fn git(action, params) {
@@ -503,9 +526,14 @@ fn set_result(k, v) {
 }
 
 // Steps 2-6 of one attempt (CONTRACT.md section 5). A fail fails the attempt; a stop ends the run.
+// Task review-fix (kind ()) runs fix-review in step 2 and takes its kind from what it changed.
 fn attempt(t, B, pre, failure) {
     let a = this.args;
-    this.call_agent("implement", this.implement_prompt(t, pre, failure));
+    if t.kind == () {
+        this.call_agent("fix-review", this.fix_prompt(t, pre));
+    } else {
+        this.call_agent("implement", this.implement_prompt(t, pre, failure));
+    }
     let S2 = this.git("snapshot", #{ base: pre });
     let H = field_of(S2, "S2", "head", "string");
     check(H != pre, "S2.head: equals the pre-task commit, nothing was committed");
@@ -514,6 +542,11 @@ fn attempt(t, B, pre, failure) {
     let T = field_of(S2, "S2", "tree", "string");
     let name_status = field_of(S2, "S2", "name_status", "string");
     let changed = changed_paths(name_status);
+    if t.kind == () {
+        t.kind = "test";
+        for p in changed { if listed(p, t.files) { t.kind = "code"; } }
+        this.set_result("teeth", "skipped:" + t.kind);
+    }
 
     check(S2.ok == true, "S2.ok: " + text_of(S2.error));
     let sk = this.call_agent("skeptic", this.skeptic_prompt(t, name_status, field_of(S2, "S2", "diff", "string"), changed));
@@ -603,14 +636,20 @@ fn restore(pre) {
     check(field_of(last, last_name, "porcelain", "string") == "", last_name + ".porcelain: the tree is not clean");
 }
 
-// Step 1, then at most two attempts: Grok retries once, with a new agent on the same model.
-fn run_task(t, B) {
-    this.results.push(#{ id: t.id, outcome: "fail", attempts: 0, teeth: "skipped:" + t.kind, model: "" });
+// Step 1: the pre-task commit, recorded in the run state.
+fn begin(id) {
     let S1 = this.git("snapshot", #{ base: "" });
     check(field_of(S1, "S1", "porcelain", "string") == "", "S1.porcelain: the tree is not clean");
     let pre = field_of(S1, "S1", "head", "string");
-    this.state.tasks[t.id] = #{ pre: pre, receipt: () };
+    this.state.tasks[id] = #{ pre: pre, receipt: () };
     this.write_state();
+    pre
+}
+
+// Step 1, then at most two attempts: Grok retries once, with a new agent on the same model.
+fn run_task(t, B) {
+    this.results.push(#{ id: t.id, outcome: "fail", attempts: 0, teeth: "skipped:" + t.kind, model: "" });
+    let pre = this.begin(t.id);
     let failure = "";
     let passed = false;
     let n = 0;
@@ -630,6 +669,112 @@ fn run_task(t, B) {
     }
     check(passed, "task " + t.id + " failed 2 attempts; last: " + failure);
     this.set_result("outcome", "pass");
+}
+
+const DIMENSIONS = [
+    "the behaviour the plan claims, and the interactions between the tasks",
+    "failure paths, lost work, and a success report that is false",
+    "forbidden changes, and broken invariants named in the rules",
+];
+
+fn review_prompt(dimension, name_status, diff) {
+    let a = this.args;
+    let p = "You review the whole branch after a plan ran. Read the repo at " + a.repo + " as needed; change nothing.\n";
+    p += "Dimension: " + dimension + "\nRules: " + json_encode(a.rules) + "\nForbidden paths: " + names(a.forbid) + "\n\n";
+    p += "Changed paths (git diff --name-status):\n" + name_status + "\n\nDiff from the run start:\n" + diff;
+    p += "\n\nRead the changed files with read_file before answering; do not answer from memory. ";
+    p += "Report only real problems in your dimension. Each finding has file (a repo-relative path), issue, and severity. ";
+    p += "Return an empty list when there are none.";
+    p
+}
+
+fn verify_prompt(f, name_status, diff) {
+    let p = "A reviewer reported this finding about the branch. Try to prove it wrong. Read the repo at " + this.args.repo + " as needed; change nothing.\n";
+    p += "File: " + f.file + "\nIssue: " + f.issue + "\nSeverity: " + text_of(f.severity) + "\n\n";
+    p += "Changed paths (git diff --name-status):\n" + name_status + "\n\nDiff from the run start:\n" + diff;
+    p += "\n\nReturn real true only when the code confirms the problem, with the evidence (path, lines, what they do). ";
+    p += "Otherwise return real false.";
+    p
+}
+
+fn fix_prompt(t, pre) {
+    let a = this.args;
+    let p = "Fix the confirmed review findings below. Work in " + a.repo + ", on the current branch (at " + pre + ").\n";
+    p += "Files: " + names(t.files) + "\nTests: " + names(t.tests) + "\n";
+    p += "Change only those paths. Never touch paths matching: " + names(a.forbid) + "\nTest command: " + a.test_cmd + "\n";
+    if lint_given(a) { p += "Lint command: " + a.lint_cmd + "\n"; }
+    p += "\nFindings:\n" + t.brief + "\n\n";
+    p += "Conventional commit; say why in the body. Never push. No co-author trailer.\n";
+    p += "Commit your work and leave the tree clean.";
+    p
+}
+
+// CONTRACT.md section 7: three reviewers, one verifier per finding, one fix as task review-fix.
+fn review_stage(B) {
+    let a = this.args;
+    let RV = this.git("snapshot", #{ base: this.state.run_start });
+    let ns = field_of(RV, "RV", "name_status", "string");
+    let diff = field_of(RV, "RV", "diff", "string");
+    let prompts = [];
+    for d in global::DIMENSIONS { prompts.push(this.review_prompt(d, ns, diff)); }
+    let findings = [];
+    for rv in this.call_agent("review", prompts) {
+        check(type_of(rv) == "map" && type_of(rv.findings) == "array", "review.findings: a reviewer returned no usable report");
+        for f in rv.findings {
+            check(type_of(f) == "map" && type_of(f.file) == "string" && type_of(f.issue) == "string",
+                "review.findings: a reviewer returned no usable report");
+            findings.push(f);
+        }
+    }
+    if findings.len() == 0 { return "review: 0 findings, none confirmed"; }
+    let prompts = [];
+    for f in findings { prompts.push(this.verify_prompt(f, ns, diff)); }
+    let verdicts = this.call_agent("verify-finding", prompts);
+    let confirmed = [];
+    for i in 0..findings.len() {
+        let v = verdicts[i];
+        check(type_of(v) == "map" && type_of(v.real) == "bool" && type_of(v.evidence) == "string",
+            "verify-finding: a verifier returned no usable report");
+        let ev = v.evidence;
+        ev.trim();
+        if v.real && ev != "" {
+            let f = findings[i];
+            f.evidence = ev;
+            confirmed.push(f);
+        }
+    }
+    if confirmed.len() == 0 { return "review: " + findings.len().to_string() + " findings, none confirmed"; }
+
+    // Fix scope in code: confirmed paths, deduplicated, minus forbid, split by rules.test_globs.
+    let seen = [];
+    let files = [];
+    let tests = [];
+    let brief = "";
+    for f in confirmed {
+        if !seen.contains(f.file) && !matches(f.file, a.forbid) {
+            if matches(f.file, a.rules.test_globs) { tests.push(f.file); } else { files.push(f.file); }
+        }
+        seen.push(f.file);
+        if brief != "" { brief += "\n"; }
+        brief += "- " + f.file + ": " + f.issue + " (" + text_of(f.severity) + "). Evidence: " + f.evidence;
+    }
+    check(files.len() + tests.len() > 0, "review: every confirmed finding is in a forbidden path");
+    let t = #{ id: "review-fix", title: "Fix confirmed review findings", files: files, tests: tests, kind: (), brief: brief };
+
+    this.current = t.id;
+    this.results.push(#{ id: t.id, outcome: "fail", attempts: 0, teeth: "skipped:test", model: global::GROK_MODEL });
+    let pre = this.begin(t.id);
+    this.set_result("attempts", 1);
+    try {
+        this.attempt(t, B, pre, "");
+    } catch (e) {
+        if !is_fail(e) { throw e; }
+        this.restore(pre);
+        throw fail("task review-fix failed; " + e.why);
+    }
+    this.set_result("outcome", "pass");
+    this.current = ();
+    "review: fixed " + confirmed.len().to_string() + " confirmed findings"
 }
 
 fn run_all() {
@@ -654,15 +799,16 @@ fn run_all() {
     this.current = ();
     this.stage = "review";
     phase("Review");
-    check(this.args.review == false, "review: the review stage is not built yet");
+    let note = if this.args.review == false { "" } else { "; " + this.review_stage(B) };
     this.stage = "done";
+    note
 }
 
 let st = #{ args: args, stage: "preflight", current: (), results: [], used: #{}, state: () };
 let result = ();
 try {
-    st.run_all();
-    result = #{ ok: true, stage: "done", task: (), summary: st.results.len().to_string() + " tasks passed", tasks: st.results };
+    let note = st.run_all();
+    result = #{ ok: true, stage: "done", task: (), summary: st.results.len().to_string() + " tasks passed" + note, tasks: st.results };
 } catch (e) {
     if type_of(e) != "map" || (e.kind != "fail" && e.kind != "stop") { throw e; }
     result = #{ ok: false, stage: st.stage, task: st.current, summary: e.why, tasks: st.results };
