@@ -1,12 +1,12 @@
 # Cleanup scope discipline
 
-The rules every code-cleanup fork inherits during recon. They constrain *how far* a
-fork goes — the "when to stop / don't over-correct" guard that the per-concern
-mandates (dedup, dead code, weak types, …) don't supply on their own.
+The rules every code-cleanup agent obeys. They constrain *how far* an agent goes — the
+"when to stop / don't over-correct" guard that the per-concern mandates (dedup, dead
+code, weak types, …) don't supply on their own.
 
-Recon reads this file aloud so it enters the shared conversation and every fork
-inherits it. If a project ships its own `.agent/rules.md`, those rules are read too
-and **win over these on conflict**.
+Recon pastes this file into every agent's brief, because a fresh agent inherits nothing
+from the session. If a project ships its own `.agent/rules.md`, those rules are pasted
+too and **win over these on conflict**.
 
 ## Primary bias to correct
 
@@ -15,7 +15,7 @@ its mandate, inventing abstractions "for flexibility," deleting code whose exter
 reachability it never checked, and disguising a behavior change as a tidy-up. Every
 rule below cuts off one of those.
 
-## Decision rules (every fork obeys)
+## Decision rules (every agent obeys)
 
 1. **Clean within your mandate only.** Working code is not automatically *done* — but
    only tidy what your mandate names. When cleanup starts spreading into unrelated
@@ -40,18 +40,23 @@ rule below cuts off one of those.
    output does not touch code.
 8. **Prove every change.** Typecheck and tests pass after each batch, or the batch
    reverts.
+9. **The boundary outranks the mandate.** If your mandate implies touching a path on the
+   exclusion list in your brief, the mandate is wrong for that file. Report it; do not
+   resolve it.
+10. **Never weaken a guard to make a check pass** — not a lint config, not a test, not a
+    checksum manifest. A truthful red beats a false green.
 
-## Stop conditions — a fork is DONE when
+## Stop conditions — an agent is DONE when
 
 - the mandated smell is gone in the files it owns, **and**
-- the next change would be speculative, cross into another fork's mandate, or alter
+- the next change would be speculative, cross into another agent's mandate, or alter
   behavior.
 
 Everything past that line is a follow-up note, not an edit.
 
 ## Provenance & what was deliberately left out
 
-These eight are distilled from the language-agnostic rule books in
+Rules 1–8 are distilled from the language-agnostic rule books in
 [`ciembor/agent-rules-books`](https://github.com/ciembor/agent-rules-books) (Maciej
 Ciemborowicz — the repo Matt Pocock forked), which in turn distill *Clean Code*
 (Martin), *Refactoring* (Fowler), *A Philosophy of Software Design* (Ousterhout), and
@@ -64,7 +69,7 @@ as net-negative pressure for an automated cleanup pass:
   Manufactures heavyweight modeling on ordinary code.
 - **Clean Architecture's mandatory ports/adapters / inward-dependency rule** — one
   strong opinion that fights the "deep module" philosophy above and bloats small
-  codebases. (Only "keep components acyclic" survives — it lives in the cycles fork.)
+  codebases. (Only "keep components acyclic" survives — it lives in the cycles mandate.)
 - **PoEAA pattern catalogue** — dated enterprise-Java patterns; the source repo's own
   compatibility matrix marks it conflicting with DDD.
 - **Clean Code's literal "tiny functions" dogma** — taken at face value, an agent
