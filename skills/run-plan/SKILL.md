@@ -22,9 +22,9 @@ runs `workflows/adversarial-verification.rhai`.
    - `review` (default `true`; `false` when the owner says no review) and `ponytail` (`"full"`, or `"ultra"` when the owner asks).
 2. **Refuse a Fable session.** If this session's model id contains `fable` (any case), stop and say so.
 3. **Grok only.** Refuse unless the session effort is `xhigh` (confirm it; if it cannot be read, refuse).
-   Refuse when `~/.grok/workflows/adversarial-verification.js` exists: that is the daemon route
+   Refuse when `adversarial-verification.js` exists in `~/.grok/workflows`: that is the daemon route
    (a workflow converted to JS), which does not run the `.rhai` executor. Otherwise treat the route as
-   the shell route. If `~/.grok/workflows/adversarial-verification.rhai` is missing, stop and tell the owner to run `./doctor --fix`.
+   the shell route. If `adversarial-verification.rhai` is missing from `~/.grok/workflows`, stop and tell the owner to run `./doctor --fix`.
 4. **Parse.** Run `python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/run-plan/scripts/parse_plan.py" "<plan_path>"`.
    It prints `{plan_hash, tasks, errors}` and exits 1 when `errors` is non-empty. Show each error and stop.
 5. **Show the tasks.** A table of `id`, `title`, `kind`, `kind_source` (`marker` or `derived`), and `complexity`
@@ -80,7 +80,7 @@ run a plan in this mode.
    missing record is not a pass.
 5. **Token.** Read the first line of `rules/modes.md` (`agent-shenanigans modes <token>`). `token_seen` is true only
    when the agent's quoted line holds that token.
-6. **Route.** Grok: `shell`, or `daemon` when `~/.grok/workflows/adversarial-verification.js` exists. Claude: `null`.
+6. **Route.** Grok: `shell`, or `daemon` when `adversarial-verification.js` exists in `~/.grok/workflows`. Claude: `null`.
 7. **Write the file.** `shas` is the JSON `python3 "<plugin dir>/doctor" --shas` prints now (doctor marks the probe stale
    when these differ from the loaded SHAs). `written_at` is epoch seconds
    (`python3 -c "import time; print(time.time())"`). `cwd` is the working directory the agent quoted, else the

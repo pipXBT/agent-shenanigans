@@ -1,97 +1,102 @@
-# My Claude Code workflow
+# The workflow
 
-This is how I run any non-trivial change in Claude Code, end to end. The idea in
-one line: **[superpowers](https://github.com/obra/superpowers) does the
-thinking — brainstorm, plan, execute — and the skills in this repo wrap that core
-in a `debate → build → clean → map → capture` loop.** Everything here installs as one
-Claude Code plugin (plus two referenced plugins — codemaps and the debate backend).
+This repo is the control copy of one workflow that runs the same way on **Claude Code** or
+**Grok Build**, whichever is open. The loop in one line:
 
-If you only read one thing, read the pipeline table.
+**brainstorm → debate → write the plan → run the plan → clean up → map the code.**
 
-## The pipeline
-
-| # | Stage | Invoke | When |
-|---|-------|--------|------|
-| 0 | **Bootstrap** | `/init` | First time in a new repo — writes `CLAUDE.md` + a language-detected `.devcontainer`. |
-| 1 | **Think** | `superpowers:brainstorming` → `superpowers:writing-plans` | Any non-trivial change: turn an idea into a design, then a task-by-task plan. |
-| 2 | **Pressure-test** | `/debate:all` | Send the plan (or a stubborn bug) to a **Grok + ChatGPT + Claude** reviewer panel *before* writing code. They argue out contradictions and return `APPROVED` / `REVISE`. |
-| 3 | **Build** | superpowers subagent execution · ultracode Workflow | Execute the approved plan. |
-| 4 | **Clean** | `/code-cleanup` | Right after the build lands — dedup, dead code, weak types, dead paths, AI slop, run by worktree-isolated forks so nothing collides. |
-| 5 | **Map** | `/update-codemaps` | After cleanup — regenerate the token-lean architecture maps in `codemaps/` so the *next* session starts with accurate context. |
-| 6 | **Capture** | `skill-postmortem` · `session-learnings` · `compound` | Close the loop: review a skill that misbehaved, fold session lessons into `CLAUDE.md`, and write hard-won fixes to project memory. |
-| ✓ | **Gate** (anytime) | `check-in` | Wherever a wrong "done" is costly — a 3-judge, evidence-checked completion gate that runs a check command and reads repo state, not just the transcript. |
-
-## Stage detail
-
-**0 · `/init`** — bootstraps a repo for Claude Code. Analyzes structure, writes a
-starter `CLAUDE.md` (commands + conventions), and scaffolds a `.devcontainer`
-with a base image chosen from the detected language. I use this instead of
-Claude's built-in `/init`.
-
-**1 · Think (superpowers)** — `superpowers:brainstorming` refines an idea into a design spec;
-writing-plans turns the spec into bite-sized, testable tasks. This is the one
-stage that stays entirely in superpowers — it's the engine, not something this
-repo replaces.
-
-**2 · `/debate:all`** — the highest-leverage quality gate. A panel of independent
-reviewers (my default panel spans Claude/Opus, ChatGPT/Codex, and Grok personas)
-reads the plan in parallel, surfaces hidden assumptions and failure modes,
-debates the contradictions, and converges on a verdict with a SHA-verified plan.
-Also works on a nasty bug: paste the symptom + suspect code and let the panel
-theorize. Runs on the `cc-debate` plugin under the hood.
-
-**3 · Build** — execute the approved plan with superpowers subagent execution or
-an ultracode Workflow.
-
-**4 · `/code-cleanup`** — deep, systematic cleanup after the feature is in.
-Nine concern-scoped forks (dedup, type consolidation, dead code, circular deps,
-weak types, dead paths, mechanical autofix, test hygiene, AI slop), each in its
-own worktree in edit mode, reconciled with a real 3-way merge. Dry-run by default.
-
-**5 · `/update-codemaps`** — regenerates `codemaps/` (a token-lean architecture
-map that loads at session start). Do this after cleanup so the maps reflect the
-*post-cleanup* structure. Ships as the separate `cc-codemaps` plugin.
-
-**6 · Capture** — three ways to make the work compound:
-- `skill-postmortem` — review a skill against the sessions where it actually
-  fired, and propose evidence-backed edits.
-- `session-learnings` — fold non-obvious commands, corrections, and gotchas into
-  the project's `CLAUDE.md` before you `/clear` or compact.
-- `compound` — after a hard-won fix, write the root cause + solution to project
-  memory so future sessions auto-load it.
-
-**✓ · `check-in`** — a completion gate you can drop anywhere. It runs a check
-command, reads repo state, and has three Haiku judges (Literalist / Verifier /
-Skeptic) advise an Opus overseer, which decides whether the goal is *actually*
-met and returns actionable gaps.
-
-## Mine vs borrowed
-
-| Tool | Origin |
-|------|--------|
-| `debate`, `code-cleanup`, `skill-postmortem`, `check-in` | Mine (some forked from STRML, then developed further). |
-| `session-learnings`, `compound`, `/init` | [STRML/cc-skills](https://github.com/STRML/cc-skills) — vendored (MIT); each file credits upstream and names its local delta. |
-| `/update-codemaps` | [STRML/cc-codemaps](https://github.com/STRML/cc-codemaps) — referenced as a plugin (not vendored). |
-| `brainstorming`, `writing-plans`, `subagent-driven-development` | Jesse Vincent's ([obra](https://github.com/obra)) **superpowers** plugin — the planning/execution engine this loop wraps. |
+What is mine and what is not: the debate runner, the plan executors, the entry skills,
+`./doctor` and the modes file are owner-authored and live in this repo. Everything written by
+someone else (superpowers, caveman, ponytail, cc-codemaps) is installed from upstream as-is and
+only declared in [`stack.toml`](./stack.toml); nothing of theirs is copied here.
 
 ## Install
 
-```
-# 1. This plugin (all the skills + the /init command)
-/plugin marketplace add pipXBT/agent-shenanigans
-/plugin install agent-shenanigans@agent-shenanigans
+Both hosts, from a checkout of this repo. `./doctor` compares the machine to `stack.toml`. It
+never deletes (it moves to `~/.agent-shenanigans-backup/<run-id>/`) and never runs `claude
+plugin` or `grok plugin`; it prints those commands for you to run.
 
-# 2. codemaps (separate plugin)
-/plugin marketplace add STRML/cc-codemaps
-/plugin install cc-codemaps@cc-codemaps
+1. `./doctor` — read-only report. On a fresh machine expect exit 1 and the drift list
+   (0 clean, 1 drift, 2 could not check).
+2. `./doctor --fix` — patches the settings keys it owns, creates the caveman and ponytail mode
+   configs and the declared links, and retires stale copies. Then run the `claude plugin` and
+   `grok plugin` commands it prints: uninstall the explanatory-output-style and duplicate
+   superpowers installs, and install agent-shenanigans from this checkout on both hosts.
+3. `./doctor --fix` again. Collision moves now pass their probes.
+4. Probes. Run `/agent-shenanigans:run-plan --probe` in a Claude session and `/run-plan --probe`
+   in a Grok session, each from a directory outside this repo. Then `./doctor --seat-probe`.
+5. One full debate on any spec with the repo debate skill. It writes the seat dry-run stamp.
+   Run `./doctor --fix` once more: it retires `model-policy` and `debate-panel`, and prints the
+   cc-debate uninstall.
+6. `./doctor --accept`, then `./doctor` — expect exit 0.
 
-# 3. debate command backend (separate plugin — the /debate:* commands)
-/plugin marketplace add STRML/cc-debate
-/plugin install debate@cc-debate
+Other flags: `./doctor --rollback <run-id>` undoes one `--fix` run from its backup folder, and
+`./doctor --shas` prints the loaded plugin SHAs as JSON. Re-run `./doctor` after any plugin
+update; `--accept` records the new SHAs as verified once both hosts load the same ones.
 
-# 4. superpowers (the planning/execution engine). It ships skills, not commands:
-#    superpowers:brainstorming, superpowers:writing-plans
-/plugin install superpowers@claude-plugins-official
-```
+## The loop
 
-Restart Claude Code after installing plugins so new skills and commands load.
+| # | Stage | Invoke | What it gives you |
+|---|-------|--------|-------------------|
+| 1 | **Brainstorm** | `superpowers:brainstorming` | A design spec. |
+| 2 | **Debate** | `agent-shenanigans:debate` | Verdict on the spec from a 14-seat panel. |
+| 3 | **Plan** | `superpowers:writing-plans` | A task-by-task plan file. |
+| 4 | **Run** | `agent-shenanigans:run-plan` | The plan executed task by task, each task verified, then a review pass. |
+| 5 | **Clean** | `/code-cleanup` | Nine tiered agents sweep the result. Same loop, `/code-cleanup` as the executor. |
+| 6 | **Map** | `/update-codemaps` | Fresh `codemaps/` for the next session. |
+| ✓ | **Gate** | `check-in` | Evidence-checked "is it actually done", anywhere a wrong "done" is costly. |
+
+Stages 1 and 3 stay entirely in superpowers; stage 6 is the cc-codemaps plugin.
+
+### 2 · Debate
+
+Seven personas (Skeptic, Architect, Pragmatist, Bullshit Detector, Constraint Engineer, Pager
+Duty, Future Me), each run on Opus 5.5 and on Grok 4.7, both at `xhigh`: 14 seats from
+`skills/debate/panel.json`, run by the repo's own seat runner on both hosts. Seats are read-only.
+
+The round rule is mechanical. A round is **APPROVED** only when every requested seat returned,
+every verdict is `APPROVED`, and the plan hash the seats saw matches the plan file. A persona
+whose two models disagree makes the round **REVISE**. Subsets never produce the final APPROVED.
+Revise and repeat for at most 3 rounds. At the cap with any seat still REVISE, stop and report
+the open items; the owner may then sign off with **OWNER-ACCEPTED**, recorded with the open items
+listed. It is never APPROVED, and it lets step 3 proceed.
+
+### 4 · Run the plan
+
+`run-plan` reads the plan file in code, shows each task's `kind` and `complexity`, states the
+agent count, and waits for go. Claude Code starts `workflows/adversarial-verification.js` through
+the Workflow tool; Grok Build runs `workflows/adversarial-verification.rhai`. Both implement
+[`workflows/CONTRACT.md`](./workflows/CONTRACT.md) and pass the same fixture cases.
+
+- **Phases.** A read-only plan agent groups tasks into phases and subprojects and gives each
+  task `depends_on`, a complexity, and a brief. Tasks run one at a time in dependency order;
+  parallel-eligible ones are logged. Optional `**Kind:**` and `**Complexity:**` marker lines under
+  a task override what is derived; `superpowers:writing-plans` does not write them.
+- **Tiers.** Complexity picks the model, always at `xhigh`: Claude uses Haiku 5.5 (low), Sonnet
+  5.5 (medium) or Opus 5.5 (high); Grok uses `grok-4.7`. A failed Claude task is retried by a new
+  agent one tier up (at most two retries); Grok retries once on the same model.
+- **Teeth.** For a `code` task, the executor reverts the task's production files to their
+  pre-task state and runs the tests: they must fail. Then it restores everything and runs the
+  gate. A passing task gets a `Task-Id` trailer and a receipt in
+  `.git/agent-shenanigans/<plan-hash>.json`; a restart trusts receipts, not commit messages.
+  Skeptic, test and lint gate, path scope (`files`, `tests`, `forbid`) and the branch check
+  surround it. It never runs on the default branch.
+- **Review.** After the last task: three read-only reviewers, one verifier per finding, one fix
+  round.
+
+### 5 · Clean up
+
+`/code-cleanup` recons once, then spawns nine fresh agents, one per concern, each on a fixed model
+tier at `xhigh`. Dry-run by default; edit mode gives each its own git worktree, reconciled with a
+3-way merge and the repo's verify scripts.
+
+## Mine vs borrowed
+
+| Piece | Origin |
+|-------|--------|
+| `debate` runner and panel, `run-plan` and the two executors, `check-in`, `skill-postmortem`, `./doctor`, `stack.toml`, `rules/modes.md` | Owner-authored, in this repo. |
+| `code-cleanup`, the debate personas | Owner-authored adaptations of [STRML/cc-skills](https://github.com/STRML/cc-skills) and [STRML/cc-debate](https://github.com/STRML/cc-debate) (Samuel Reed, MIT); each credits its source and names what changed. |
+| `superpowers:brainstorming`, `superpowers:writing-plans` | [obra/superpowers](https://github.com/obra/superpowers) (Jesse Vincent), installed as-is. |
+| caveman | [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman), installed as-is. |
+| ponytail | [ponytail](https://github.com/DietrichGebert/ponytail), installed as-is. |
+| `/update-codemaps` | [STRML/cc-codemaps](https://github.com/STRML/cc-codemaps), installed as-is. |

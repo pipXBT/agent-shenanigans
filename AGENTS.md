@@ -1,9 +1,9 @@
 # agent-shenanigans — guide for AI agents
 
-This repository is a **Claude Code plugin**: a bundle of skills, one slash-command,
-and the manifests that make it installable via `/plugin`. Grok Build loads the same
-`skills/<name>/SKILL.md` from its plugin cache. If you are an AI agent
-working *in this repo*, read this first. (This file follows the `AGENTS.md`
+This repository is the control copy of one workflow that runs on Claude Code or Grok Build.
+It is a **Claude Code plugin** (skills, agents, manifests) plus the files that keep both
+hosts configured the same way. Grok Build loads the same `skills/<name>/SKILL.md` from its
+plugin cache. If you are an AI agent working *in this repo*, read this first. (This file follows the `AGENTS.md`
 convention; `CLAUDE.md` is symlinked to it.)
 
 ## Layout
@@ -11,32 +11,39 @@ convention; `CLAUDE.md` is symlinked to it.)
 ```
 .claude-plugin/     plugin.json + marketplace.json (plugin + marketplace manifests)
 skills/<name>/      one skill each: SKILL.md (+ optional references/, scripts/)
-commands/<name>.md  Claude slash-commands (e.g. /init)
-grok/workflows/     Grok Build workflows (*.rhai). Not loaded by the Claude plugin.
-grok/install.sh     symlinks grok/workflows/*.rhai into ~/.grok/workflows/
-WORKFLOW.md         the end-to-end pipeline these compose into
+agents/             agent types the workflow spawns (probe: no tools; reader: read-only)
+workflows/          the adversarial-verification executors (.js for Claude, .rhai for Grok),
+                    CONTRACT.md they both implement, and the shared fixture cases
+rules/              modes.md, linked to ~/.claude/rules/ by doctor; carries the modes marker
+lib/doctor/         the code behind ./doctor (Python standard library only)
+doctor              the drift checker and fixer; reads stack.toml
+stack.toml          every plugin, link, and setting each host must have
+verified.json       plugin SHAs last verified, written by ./doctor --accept (absent until then)
+tests/              unittest (Python) and node:test (workflows) suites
+WORKFLOW.md         the end-to-end loop and the install steps
 ```
 
-Claude Code discovers skills under `skills/` and commands under `commands/`
-automatically from the plugin — no per-skill registration. The manifests declare the
+Claude Code discovers skills under `skills/` and agents under `agents/` automatically from
+the plugin — no per-skill registration. The `.rhai` workflow is not loaded by the plugin;
+`doctor` links it into Grok's workflows folder. The manifests declare the
 plugin (`.claude-plugin/plugin.json`) and expose it as a one-plugin marketplace
 (`.claude-plugin/marketplace.json`, `source: "./"`) so
 `/plugin marketplace add pipXBT/agent-shenanigans` works.
 
-A few skills/commands are **vendored** from
-[STRML/cc-skills](https://github.com/STRML/cc-skills) with an attribution header
-that names the local delta (`session-learnings`, `compound`, `/init`).
+Everything in this repo is owner-authored. Upstream plugins (superpowers, caveman, ponytail,
+cc-codemaps) are installed as-is and declared in `stack.toml`, never copied here. Run
+`./doctor` to check a machine against it.
 
 ## Bundled scripts (important)
 
-A skill that ships an executable (today `code-cleanup/scripts/cc-fork`) must **not**
+A skill that ships an executable (today `debate/scripts/run_seats.py`) must **not**
 hard-code `~/.claude/skills/<name>/...` — that path is wrong once the skill lives in
 the plugin cache. Resolve the script at runtime instead: prefer
 `${CLAUDE_PLUGIN_ROOT}/skills/<name>/scripts/...`, and fall back to discovery:
 ```bash
 find "$HOME/.claude/plugins" "$HOME/.claude/skills" -path '*<name>/scripts/<file>' 2>/dev/null | head -1
 ```
-See the dependency block in `skills/code-cleanup/SKILL.md` for the pattern.
+See the commands in `skills/debate/SKILL.md` for the pattern.
 
 ## Adding or editing a skill
 
@@ -54,18 +61,12 @@ See the dependency block in `skills/code-cleanup/SKILL.md` for the pattern.
 3. Add a row to the skills table in `README.md`.
 4. Bump `version` in both manifests when cutting a release.
 
-## Adding a command
-
-Slash commands go in `commands/<name>.md` (a markdown file with a `description` in
-frontmatter). They load from the plugin automatically. A vendored command carries the
-same attribution header as a vendored skill.
-
 ## Conventions
 
 - Don't relabel third-party work as your own. Skills adapted from someone else's plugin
-  must credit the source (see `skills/debate/` → STRML's `cc-debate`).
-- Never commit secrets. Config examples ship as `*.example.json` with prompts and agent
-  names only — no API keys or tokens.
+  must credit the source and name what changed (see `skills/debate/` → STRML's `cc-debate`).
+  A verbatim copy of upstream work does not belong here.
+- Never commit secrets. No API keys or tokens in any config or example.
 - Keep each skill self-contained and single-purpose; if a `SKILL.md` is doing two jobs,
   split it.
 - One `SKILL.md` per skill for both hosts. Put host differences in a Host section in that file. Do not add `SKILL.grok.md`.

@@ -1,117 +1,71 @@
 # agent-shenanigans
 
-A personal [Claude Code](https://claude.com/claude-code) **plugin** — my workflow for
-non-trivial work: debate a plan, build, clean up, map the codebase, and
-capture what was learned.
+The control copy of my [Claude Code](https://claude.com/claude-code) and Grok Build workflow:
+brainstorm, debate the spec, plan, run the plan with verification, clean up, map the code. One
+plugin, one declared stack, the same behaviour on either host.
 
-> **New here?** [`WORKFLOW.md`](./WORKFLOW.md) shows how these skills fit together into
-> one end-to-end pipeline (bootstrap → think → debate → build → clean → map → capture),
-> alongside superpowers and two referenced plugins.
+> **New here?** [`WORKFLOW.md`](./WORKFLOW.md) walks the loop and the install steps.
 
+## What is mine and what is not
+
+The debate seat runner, the plan executors, the entry skills, `doctor`, and the modes file are
+owner-authored and live in this repo. Upstream plugins (superpowers, caveman, ponytail,
+cc-codemaps) are installed as-is and declared in [`stack.toml`](./stack.toml); nothing of theirs is
+copied here, so nothing here can go stale against its source.
 
 ## Install
 
 ```
-/plugin marketplace add pipXBT/agent-shenanigans
-/plugin install agent-shenanigans@agent-shenanigans
+git clone https://github.com/pipXBT/agent-shenanigans.git
+cd agent-shenanigans
+./doctor           # report drift against stack.toml (exit 0 clean, 1 drift, 2 could not check)
+./doctor --fix     # patch what doctor owns, print the plugin commands to run
 ```
 
-Restart Claude Code — all skills below plus the `/init` command load. For the full
-pipeline you'll also want the two referenced plugins (below).
+`doctor` never deletes (it moves to `~/.agent-shenanigans-backup/<run-id>/`) and never runs
+`claude plugin` or `grok plugin`. The full day-one sequence, with the probes, is in
+[`WORKFLOW.md`](./WORKFLOW.md#install). Restart the host after installing plugins.
+
+| Command | What it does |
+|---------|--------------|
+| `./doctor` | Read-only drift report, grouped by host. |
+| `./doctor --fix` | Patch settings, create links, retire stale copies; print the plugin commands. |
+| `./doctor --rollback <run-id>` | Undo one `--fix` run from its backup folder. |
+| `./doctor --seat-probe` | Run the debate seat runner's probe. |
+| `./doctor --accept` | Record the loaded plugin SHAs as verified, when both hosts agree. |
+| `./doctor --shas` | Print the loaded plugin SHAs as JSON. |
 
 ## Skills
 
 | Skill | What it does |
 |-------|--------------|
-| [debate](./skills/debate/) | Multi-AI plan review before writing code — a Grok + ChatGPT + Claude reviewer panel runs in parallel, surfaces hidden assumptions and failure modes, debates contradictions, and returns an `APPROVED`/`REVISE` verdict with SHA-verified plans. |
-| [code-cleanup](./skills/code-cleanup/) | Deep, systematic cleanup — nine concern-scoped forks (dedup, dead code, weak types, dead paths, AI slop, …), each in its own worktree in edit mode, reconciled with a real 3-way merge. Dry-run by default. |
-| [skill-postmortem](./skills/skill-postmortem/) | Review a skill against the sessions where it actually fired; categorize friction, confidence-rank, and propose evidence-backed edits — you approve each before it lands. |
-| [check-in](./skills/check-in/) | Context-verified completion gate — a 3-judge Haiku panel (Literalist / Verifier / Skeptic) advises an Opus overseer that decides whether a goal is *actually* met, checking a command + repo state, not just the transcript. |
-| [session-learnings](./skills/session-learnings/) | Fold non-obvious commands, corrections, and gotchas into the project's `CLAUDE.md`. *Vendored from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT); local delta named in the file.* |
-| [compound](./skills/compound/) | After a hard-won fix, write root cause + solution into project memory for future sessions to auto-load. *Vendored from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT); local delta named in the file.* |
+| [debate](./skills/debate/) | Review a spec or plan with a 14-seat panel: seven personas, each on Opus 5.5 and Grok 4.7 at `xhigh`. A mechanical round rule gives `APPROVED` or `REVISE`; after 3 rounds the owner may record `OWNER-ACCEPTED`. |
+| [run-plan](./skills/run-plan/) | Execute a `superpowers:writing-plans` file task by task: skeptic, teeth check, test gate, and a receipt per task, then a three-reviewer pass. `--probe` checks that agents this repo starts get the modes and have no tools. |
+| [code-cleanup](./skills/code-cleanup/) | Deep cleanup by nine fresh tiered agents, one per concern (dedup, dead code, weak types, dead paths, AI slop, ...). Dry-run by default; worktree per mandate in edit mode. |
+| [check-in](./skills/check-in/) | Context-verified completion gate: a three-judge panel advises an overseer that decides whether a goal is actually met, from a check command and repo state, not just the transcript. |
+| [skill-postmortem](./skills/skill-postmortem/) | Review a skill against the sessions where it fired; rank friction by confidence and propose edits you approve one by one. |
 
-> One `SKILL.md` per skill. Claude Code and Grok Build both load that file. A **Host**
-> section names the spawn or path that differs. `cc-fork` stays Claude-only. The Grok
-> debate panel and the Grok cleanup spawn live in the same files.
+One `SKILL.md` per skill, loaded by both hosts; a **Host** section names what differs.
 
-## Command
+## Layout
 
-| Command | What it does |
-|---------|--------------|
-| `/init` | Bootstrap a repo for Claude Code — writes `CLAUDE.md` + a language-detected `.devcontainer`. *Vendored from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT); local delta named in the file.* Used instead of Claude's built-in `/init`. |
-
-## Grok workflows
-
-Grok Build workflows live in `grok/workflows/`. They are not part of the Claude
-plugin, and `/plugin install` does not load them. `deep-research` and
-`learn-traces` already ship with Grok, so they are not copied here.
-
-On another machine, after Grok Build is installed:
-
-```
-git clone https://github.com/pipXBT/agent-shenanigans.git
-./agent-shenanigans/grok/install.sh
-```
-
-That symlinks each workflow into `~/.grok/workflows/`. Re-run it after
-`git pull`. A workflow that is already a real file there is left alone.
-
-| Workflow | What it does |
-|----------|----------------|
-| [adversarial-verification](./grok/workflows/adversarial-verification.rhai) | Plan the build into phases, subprojects, and dependent tasks, then implement one task at a time: skeptic, teeth, then test and lint gates, with one fix round. After the last task, three reviewers and one skeptic per finding. |
-
-Run it from Grok with `/adversarial-verification` or
-`/workflow adversarial-verification`. It pauses until you pass an object:
-
-- `repo` — absolute path the agents `cd` into
-- `test_cmd` — the gate command
-- `tasks` — `[{title, brief, plan}]`, or a single `title` plus `brief`
-- Optional: `lint_cmd`, `branch`, `rules`, `forbid`, `base_sha`, `review` (default true), `ponytail` (`full` or `ultra`, default `full`)
-
-It will not commit to `main`, push, stash, or add a `Co-Authored-By` trailer.
-A second failure on the same task stops the run. The fix round resumes the same Grok agent. The plan also records a Claude tier per task (Haiku 5.5, Sonnet 5.5, Opus 5.5) and a one-tier-up retry rule, but no Claude Code runner exists yet, so nothing acts on those fields.
-
-## Referenced plugins
-
-Two pieces of the pipeline are separate plugins — install them too:
-
-- **codemaps** — architecture maps via `/update-codemaps`:
-  `/plugin marketplace add STRML/cc-codemaps` → `/plugin install cc-codemaps@cc-codemaps`.
-- **debate backend** — the `/debate:*` commands the `debate` skill drives:
-  `/plugin marketplace add STRML/cc-debate` → `/plugin install debate@cc-debate`.
-
-And the planning engine the whole flow wraps: the **superpowers** plugin (`superpowers:brainstorming`,
-`superpowers:writing-plans`). See [`WORKFLOW.md`](./WORKFLOW.md) for how it all fits together.
-
-## See also
-
-Other [STRML/cc-skills](https://github.com/STRML/cc-skills) I run but didn't bundle —
-grab them upstream: `recall`, `scan-diff`, `commit-and-verify`, `coderabbit-new`.
-
-## Repo layout (for contributors)
-
-See [`AGENTS.md`](./AGENTS.md). In short: skills live in `skills/<name>/SKILL.md`, the
-slash-command in `commands/`, and the plugin manifests in `.claude-plugin/`. Bundled
-scripts are resolved at runtime via `${CLAUDE_PLUGIN_ROOT}` (with a discovery fallback),
-so they work wherever the plugin is installed.
+See [`AGENTS.md`](./AGENTS.md) for the repo map and how to add a skill. The executor contract is
+[`workflows/CONTRACT.md`](./workflows/CONTRACT.md).
 
 ## Credits
 
-- [`debate`](./skills/debate/) adapts Sam Reed's ([STRML](https://github.com/STRML))
-  [`cc-debate`](https://github.com/STRML/cc-debate) + [`cc-skills`](https://github.com/STRML/cc-skills)
-  (MIT). The `/debate:*` commands run on the upstream `cc-debate` plugin; this repo carries
-  a customized reviewer panel and a Grok-native port.
-- [`code-cleanup`](./skills/code-cleanup/) adapts STRML's `cc-skills` `code-cleanup` command
-  and `cc-fork` tool (MIT, © Samuel Reed) — `scripts/cc-fork` vendored verbatim; this repo
-  revises the concern set, adds worktree-isolated edit mode, and a scope-discipline guard
-  distilled from [`ciembor/agent-rules-books`](https://github.com/ciembor/agent-rules-books)
-  (Maciej Ciemborowicz).
-- [`session-learnings`](./skills/session-learnings/), [`compound`](./skills/compound/), and
-  [`/init`](./commands/init.md) are **vendored** from STRML's `cc-skills`
-  (MIT, © Samuel Reed). Each carries an attribution header that names its local
-  delta (the host-file block). Everything else is upstream text.
-- [`/update-codemaps`](https://github.com/STRML/cc-codemaps) is **referenced** as the
-  `cc-codemaps` plugin — Sam maintains it upstream.
+- [obra/superpowers](https://github.com/obra/superpowers) (Jesse Vincent): `brainstorming`,
+  `writing-plans`, and the planning habit this loop wraps. Installed as-is.
+- [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) and
+  [ponytail](https://github.com/DietrichGebert/ponytail): the terse and minimal modes every agent
+  here runs in. Installed as-is.
+- [STRML/cc-skills](https://github.com/STRML/cc-skills) and
+  [STRML/cc-debate](https://github.com/STRML/cc-debate) (Samuel Reed, MIT): [`code-cleanup`](./skills/code-cleanup/)
+  and the [`debate`](./skills/debate/) personas are adaptations that credit their source and
+  name what changed. The seat runner and panel file are my own.
+- [STRML/cc-codemaps](https://github.com/STRML/cc-codemaps): `/update-codemaps`. Installed as-is.
+- [`ciembor/agent-rules-books`](https://github.com/ciembor/agent-rules-books) (Maciej
+  Ciemborowicz): the scope-discipline guard in `code-cleanup`.
 
 ## License
 

@@ -1,10 +1,10 @@
 {
   "name": "agent-shenanigans",
-  "version": "0.1.0",
-  "description": "A personal Claude Code workflow: debate, code-cleanup, skill-postmortem, check-in, plus vendored session-learnings/compound and an /init command.",
+  "version": "0.2.0",
+  "description": "Debate, run-plan, code-cleanup, check-in and skill-postmortem: one workflow for Claude Code and Grok Build.",
   "author": { "name": "pipXBT", "url": "https://github.com/pipXBT" },
   "homepage": "https://github.com/pipXBT/agent-shenanigans",
   "repository": "https://github.com/pipXBT/agent-shenanigans",
   "license": "MIT",
-  "keywords": ["workflow", "debate", "code-cleanup", "skills"]
+  "keywords": ["workflow", "debate", "run-plan", "code-cleanup", "check-in", "skill-postmortem"]
 }

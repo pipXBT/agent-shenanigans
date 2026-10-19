@@ -1,13 +1,13 @@
 {
   "name": "agent-shenanigans",
-  "description": "pipXBT's personal Claude Code workflow — debate, orchestrate, clean, capture.",
+  "description": "pipXBT's workflow for Claude Code and Grok Build: debate, run-plan, code-cleanup, check-in, skill-postmortem.",
   "owner": { "name": "pipXBT", "url": "https://github.com/pipXBT" },
   "plugins": [
     {
       "name": "agent-shenanigans",
       "source": "./",
-      "version": "0.1.0",
-      "description": "Debate, code-cleanup, skill-postmortem, check-in, session-learnings, compound + /init.",
+      "version": "0.2.0",
+      "description": "Debate, run-plan, code-cleanup, check-in and skill-postmortem: one workflow for Claude Code and Grok Build.",
       "author": { "name": "pipXBT" }
     }
   ]
