@@ -468,8 +468,7 @@
           "tail": "OK"
         }
       ]
-    },
-    "kill_after": null
+    }
   },
   "expect": {
     "ok": false,

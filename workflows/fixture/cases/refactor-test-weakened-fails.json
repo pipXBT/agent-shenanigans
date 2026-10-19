@@ -299,8 +299,7 @@
           "evidence": "An assertion was weakened."
         }
       ]
-    },
-    "kill_after": null
+    }
   },
   "expect": {
     "ok": false,

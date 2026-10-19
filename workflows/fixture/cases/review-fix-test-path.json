@@ -451,8 +451,7 @@
           "summary": "Fixed."
         }
       ]
-    },
-    "kill_after": null
+    }
   },
   "expect": {
     "ok": true,

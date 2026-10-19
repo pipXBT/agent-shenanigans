@@ -1,0 +1,387 @@
+{
+  "name": "docs-touches-code-fails",
+  "args": {
+    "repo": "/fixture/repo",
+    "test_cmd": "make test",
+    "plan_path": "docs/plan.md",
+    "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "rules": {
+      "high_risk": [
+        "contracts/**"
+      ],
+      "test_globs": [
+        "tests/**"
+      ]
+    },
+    "forbid": [
+      ".github/**"
+    ],
+    "review": false,
+    "ponytail": "full",
+    "run_nonce": "fixture-docs-touches-code-fails",
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Task 1",
+        "kind_source": "marker",
+        "complexity": null,
+        "files": [
+          "README.md",
+          "src/cli.py"
+        ],
+        "tests": [
+          "tests/golden/help.txt"
+        ],
+        "kind": "docs"
+      }
+    ]
+  },
+  "fixture": {
+    "outputs": {
+      "git": [
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":null}}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tree": "ffffffffffffffffffffffffffffffffffffffff",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "M\tREADME.md\nM\ttests/golden/help.txt",
+          "diff": "diff for M README.md\nM tests/golden/help.txt",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "tree": "ffffffffffffffffffffffffffffffffffffffff",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "M\tREADME.md\nM\tsrc/cli.py",
+          "diff": "diff for M README.md\nM src/cli.py",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "8888888888888888888888888888888888888888",
+          "tree": "ffffffffffffffffffffffffffffffffffffffff",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "M\tREADME.md\nM\tsrc/cli.py",
+          "diff": "diff for M README.md\nM src/cli.py",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        }
+      ],
+      "plan": [
+        {
+          "phases": [
+            {
+              "name": "Phase 1",
+              "subprojects": [
+                {
+                  "name": "Core",
+                  "tasks": [
+                    {
+                      "id": "1",
+                      "depends_on": [],
+                      "complexity": "low",
+                      "brief": "Do task 1 (docs-touches-code-fails)."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "implement": [
+        {
+          "summary": "Done.",
+          "issues": []
+        },
+        {
+          "summary": "Done.",
+          "issues": []
+        },
+        {
+          "summary": "Done.",
+          "issues": []
+        }
+      ],
+      "skeptic": [
+        {
+          "verdict": "pass",
+          "evidence": "Matches the brief."
+        },
+        {
+          "verdict": "pass",
+          "evidence": "Matches the brief."
+        },
+        {
+          "verdict": "pass",
+          "evidence": "Matches the brief."
+        }
+      ]
+    }
+  },
+  "expect": {
+    "ok": false,
+    "stage": "task",
+    "task": "1",
+    "outcomes": {
+      "1": "fail"
+    },
+    "summary": "src/cli.py is not a documentation path",
+    "implement": [
+      "claude-haiku-5-5",
+      "claude-sonnet-5-5",
+      "claude-opus-5-5"
+    ],
+    "tasks": {
+      "1": {
+        "attempts": 3,
+        "teeth": "skipped:docs"
+      }
+    },
+    "prompts": [
+      {
+        "label": "implement",
+        "n": 1,
+        "includes": "tests/golden/help.txt is not a documentation path"
+      }
+    ],
+    "git": [
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "read_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "write_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "write_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "teeth_restore"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "teeth_restore"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "teeth_restore"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  }
+}

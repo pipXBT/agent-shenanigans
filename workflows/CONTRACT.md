@@ -379,15 +379,16 @@ at stage `done`.
 - The fix runs as task `review-fix` through steps 1–6 with one attempt:
   `fix-review` replaces `implement`, and its prompt lists the confirmed
   findings with their evidence. It runs on `OTHER_MODEL` (Claude) or
-  `GROK_MODEL`, outside the tier ladder. Its kind is `code` when `changed` ∩
-  `files` is non-empty after step 2, else `test`, so teeth runs only when it
-  changed a production path and never touches `tests`.
+  `GROK_MODEL`, outside the tier ladder. Its kind, set after step 2, is
+  `code` when `changed` has a production path; else `docs` when every path in
+  `changed` is a docs path in `files`; else `test`. So teeth runs only when it
+  changed a production path, and never touches `tests`.
 - Every stop inside `review-fix` is at stage `review`. On any failure: F1–F3
   back to its pre-fix SHA, then stop with `task: "review-fix"`. On pass the run ends at stage `done`.
 
 ## 8. Fixture
 
-`args.fixture = {outputs: {<label>: [output, ...]}, kill_after: <task id> | null}`
+`args.fixture = {outputs: {<label>: [output, ...]}}`
 
 - With a fixture present the executor never spawns. Each
   `call(label, ...)` returns that label's next output in order and records
@@ -397,15 +398,24 @@ at stage `done`.
   and the state writes, which are `git` calls like any other.
 - `git` outputs are full `GitReport` objects. Leaving a field out exercises
   the fail-closed path for any check that reads it.
-- `kill_after`: right after that task's receipt is written in step 6, the
-  executor ends as if killed: `{ok: false, stage: "task", task: <id>,
-  summary: "killed by fixture after <id>"}`.
+- A killed run is covered as a restart: the `restart-*` cases script the run
+  state and `HEAD` an interrupted run leaves behind.
 - Case file `workflows/fixture/cases/<name>.json`:
   `{name, args, fixture, expect: {ok, stage, task?, outcomes: {id: outcome}}}`.
   The harness runs the executor with the case's `args` plus `fixture`. A case
   passes when `result.ok`, `result.stage`, `result.task` (when `expect.task`
   is given), and each listed outcome match.
 - Both executors run every case and must produce the same results.
+  - Claude: `node --test tests/workflows/` runs every case through
+    `workflows/fixture/harness.mjs`.
+  - Grok: `python3 workflows/fixture/run_grok_case.py CASE.json [--rhai PATH]`
+    runs one case through headless `~/.grok/bin/grok`, whose `workflow` tool
+    runs the script with `validate_only: true`. The tool truncates a finished
+    result, so the runner runs a temporary copy of the script with the case's
+    args embedded and the result thrown. It prints the result JSON, then
+    `PASS` or `FAIL` against `expect` (`ok`, `stage`, `task`, outcomes, and
+    `summary` as a substring). It calls Grok, so it stays out of the test
+    suite.
 
 ## 9. Result
 
