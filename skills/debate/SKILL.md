@@ -61,8 +61,24 @@ process group before it exits. Do not use `kill -9` on the runner: it cannot cle
 personas, reports `N/<requested>`, and never produces the final APPROVED. `--stamp` only writes
 when all 14 seats return, so it is safe to pass every time.
 
-The runner appends a plain-prose line and a final-`VERDICT:`-line instruction to every seat's
-prompt, re-runs seats that returned no verdict once, and writes into the round folder:
+Each seat runs in the caveman and ponytail modes `panel.json` gives its persona. Both seats of a
+persona always share modes, so a split comes from reasoning, not style (`load_panel` rejects a
+panel where they differ). The modes reach Opus through `CAVEMAN_DEFAULT_MODE` and
+`PONYTAIL_DEFAULT_MODE`, and both models through lines in the prompt (Grok has no hooks):
+
+| Persona | caveman | ponytail |
+|---------|---------|----------|
+| skeptic | ultracave | off |
+| architect | ultracave | full |
+| pragmatist | ultracave | ultra |
+| bullshit-detector | ultracave | off |
+| constraint-engineer | ultracave | off |
+| pager-duty | ultracave | off |
+| future-me | ultracave | ultra |
+
+The runner appends those mode lines (or "Write plain prose." when a persona has both off) and a
+final-`VERDICT:`-line instruction to every seat's prompt, re-runs seats that returned no verdict
+once, and writes into the round folder:
 
 | File | Meaning |
 |------|---------|

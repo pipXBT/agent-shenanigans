@@ -26,6 +26,15 @@ class DebateSkillTest(unittest.TestCase):
                   "run_in_background", "STRML", "cc-debate"]:
             self.assertIn(s, body)
 
+    def test_body_has_the_modes_table_and_symmetry_rule(self):
+        body = SKILL.read_text()
+        for s in ["| Persona | caveman | ponytail |", "| pragmatist | ultracave | ultra |",
+                  "| future-me | ultracave | ultra |", "| architect | ultracave | full |",
+                  "always share modes", "panel.json"]:
+            self.assertIn(s, body)
+        self.assertNotIn("plain-prose line", body)
+        self.assertNotIn("modes off", body)
+
     def test_no_stale_cc_debate_command_reference(self):
         # A later task scans every skill .md for stale command names.
         self.assertNotIn("/debate:all", SKILL.read_text())

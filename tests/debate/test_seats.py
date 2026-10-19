@@ -3,6 +3,7 @@ import json
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -12,11 +13,11 @@ sys.path.insert(0, str(REPO / "skills/debate/scripts"))
 from seats import (  # noqa: E402
     CLAUDE_READ_TOOLS,
     GROK_READ_TOOLS,
-    PLAIN_PROSE_LINE,
     VERDICT_INSTRUCTION,
     PanelError,
     Seat,
     load_panel,
+    modes_lines,
     parse_verdict,
     seat_argv,
     seat_env,
@@ -24,11 +25,32 @@ from seats import (  # noqa: E402
 
 opus_seat = Seat("skeptic-opus", "skeptic", "opus", "claude-opus-5-5", "xhigh", 1200, "Be skeptical.")
 grok_seat = Seat("skeptic-grok", "skeptic", "grok", "grok-4.7", "xhigh", 1800, "Be skeptical.")
+skeptic_opus = Seat("skeptic-opus", "skeptic", "opus", "claude-opus-5-5", "xhigh", 1200, "Be skeptical.",
+                    "ultracave", "off")
+pragmatist_grok = Seat("pragmatist-grok", "pragmatist", "grok", "grok-4.7", "xhigh", 1800, "Be pragmatic.",
+                       "ultracave", "ultra")
 
 
-def seat_entry(host, model, effort="xhigh"):
+# persona -> (caveman, ponytail): the owner's table, 2026-10-20.
+MODES = {"skeptic": ("ultracave", "off"), "architect": ("ultracave", "full"),
+         "pragmatist": ("ultracave", "ultra"), "bullshit-detector": ("ultracave", "off"),
+         "constraint-engineer": ("ultracave", "off"), "pager-duty": ("ultracave", "off"),
+         "future-me": ("ultracave", "ultra")}
+CAVEMAN_LINE = ("Style: caveman ultracave. Terse fragments; drop articles, filler, and connectives; "
+                "state each fact once. Keep every technical fact, quote, path, number, and every "
+                "not/never/no/only verbatim.")
+FULL_LINE = ("Judgment: ponytail full. Recommend the smallest complete change; flag speculative "
+             "abstraction, options, and scaffolding. Never cut validation, error handling that prevents "
+             "data loss, or security.")
+ULTRA_LINE = ("Judgment: ponytail ultra. Recommend the smallest complete change and challenge any "
+              "requirement the plan does not justify; deletion beats addition. Never cut validation, "
+              "error handling that prevents data loss, or security.")
+PONYTAIL_LINES = {"off": [], "full": [FULL_LINE], "ultra": [ULTRA_LINE]}
+
+
+def seat_entry(host, model, effort="xhigh", **extra):
     return {"persona": "skeptic", "host": host, "model": model, "effort": effort,
-            "timeout": 60, "system_prompt": "Be skeptical."}
+            "timeout": 60, "system_prompt": "Be skeptical.", **extra}
 
 
 class PanelTest(unittest.TestCase):
@@ -41,8 +63,15 @@ class PanelTest(unittest.TestCase):
         self.assertEqual({s.model for s in seats}, {"claude-opus-5-5", "grok-4.7"})
         self.assertEqual({s.effort for s in seats}, {"xhigh"})
         for name, entry in json.loads(PANEL.read_text())["seats"].items():
-            self.assertEqual(set(entry), {"persona", "host", "model", "effort", "timeout", "system_prompt"})
+            self.assertEqual(set(entry), {"persona", "host", "model", "effort", "timeout", "system_prompt",
+                                          "caveman", "ponytail"})
             self.assertEqual(name, f"{entry['persona']}-{entry['host']}")
+
+    def test_panel_modes_follow_the_owner_table_on_both_seats(self):
+        seats = load_panel(PANEL)
+        self.assertEqual({(s.persona, s.caveman, s.ponytail) for s in seats},
+                         {(persona, *modes) for persona, modes in MODES.items()})
+        self.assertEqual({s.persona for s in seats if s.host == "grok"}, set(MODES))
 
     def test_load_panel_rejects_fable_and_non_xhigh(self):
         bad_panels = {
@@ -57,6 +86,33 @@ class PanelTest(unittest.TestCase):
                 with self.subTest(label):
                     path = Path(d) / "panel.json"
                     path.write_text(json.dumps({"seats": seats}))
+                    with self.assertRaises(PanelError):
+                        load_panel(path)
+
+    def test_load_panel_modes_default_off(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "panel.json"
+            path.write_text(json.dumps({"seats": {"skeptic-opus": seat_entry("opus", "claude-opus-5-5"),
+                                                  "skeptic-grok": seat_entry("grok", "grok-4.7")}}))
+            self.assertEqual({(s.caveman, s.ponytail) for s in load_panel(path)}, {("off", "off")})
+
+    def test_load_panel_rejects_asymmetric_or_invalid_modes(self):
+        both = {"caveman": "ultracave", "ponytail": "full"}
+        cases = {  # label: (opus modes, grok modes)
+            "caveman differs": (both, dict(both, caveman="off")),
+            "ponytail differs": (both, dict(both, ponytail="ultra")),
+            "ponytail absent on one seat": (both, {"caveman": "ultracave"}),
+            "invalid caveman": (dict(both, caveman="loud"), dict(both, caveman="loud")),
+            "invalid ponytail": (dict(both, ponytail="megacave"), dict(both, ponytail="megacave")),
+            "ultra is not a caveman mode": (dict(both, caveman="ultra"), dict(both, caveman="ultra")),
+        }
+        with tempfile.TemporaryDirectory() as d:
+            for label, (opus, grok) in cases.items():
+                with self.subTest(label):
+                    path = Path(d) / "panel.json"
+                    path.write_text(json.dumps({"seats": {
+                        "skeptic-opus": seat_entry("opus", "claude-opus-5-5", **opus),
+                        "skeptic-grok": seat_entry("grok", "grok-4.7", **grok)}}))
                     with self.assertRaises(PanelError):
                         load_panel(path)
 
@@ -75,7 +131,37 @@ class VerdictTest(unittest.TestCase):
 
     def test_instruction_does_not_parse(self):
         self.assertIsNone(parse_verdict(VERDICT_INSTRUCTION))
-        self.assertIsNone(parse_verdict(PLAIN_PROSE_LINE))
+        for seat in load_panel(PANEL):
+            self.assertIsNone(parse_verdict(modes_lines(seat)))
+
+    def test_verdict_parses_after_caveman_style_reply(self):
+        reply = ("Plan weak. No rollback. Step 3 assumes db up; never checked.\n"
+                 "Fix: add `--dry-run`, 2 retries.\n\nVERDICT: REVISE")
+        self.assertEqual(parse_verdict(reply), "REVISE")
+        self.assertEqual(parse_verdict("Fine. No gaps.\nVERDICT: APPROVED"), "APPROVED")
+        self.assertEqual(parse_verdict(reply + "\n", timed_out=True), "REVISE")
+
+
+class ModesLinesTest(unittest.TestCase):
+    def test_modes_lines_for_every_persona_in_the_table(self):
+        seats = load_panel(PANEL)
+        for seat in seats:
+            with self.subTest(seat.name):
+                _, ponytail = MODES[seat.persona]
+                self.assertEqual(modes_lines(seat), "\n".join([CAVEMAN_LINE, *PONYTAIL_LINES[ponytail]]))
+
+    def test_both_off_is_plain_prose(self):
+        self.assertEqual(modes_lines(opus_seat), "Write plain prose.")
+        self.assertEqual(modes_lines(replace(grok_seat, caveman="off", ponytail="off")), "Write plain prose.")
+
+    def test_only_ponytail_on(self):
+        self.assertEqual(modes_lines(replace(opus_seat, caveman="off", ponytail="full")), FULL_LINE)
+
+    def test_a_valid_mode_with_no_prompt_line_fails_loudly(self):
+        # Grok has no hooks, so a mode with no line would leave the two seats of a persona unequal.
+        for seat in (replace(opus_seat, caveman="megacave"), replace(opus_seat, ponytail="lite")):
+            with self.subTest(seat), self.assertRaises(PanelError):
+                modes_lines(seat)
 
 
 class ArgvTest(unittest.TestCase):
@@ -105,21 +191,25 @@ class ArgvTest(unittest.TestCase):
 
 
 class EnvTest(unittest.TestCase):
-    def test_opus_env_modes_off_and_nested_unset(self):
+    def test_opus_env_carries_seat_modes_and_unsets_nested(self):
         base = {"CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "cli", "PATH": "/b"}
-        env = seat_env(opus_seat, base)
-        self.assertEqual(env["CAVEMAN_DEFAULT_MODE"], "off")
+        env = seat_env(skeptic_opus, base)
+        self.assertEqual(env["CAVEMAN_DEFAULT_MODE"], "ultracave")
         self.assertEqual(env["PONYTAIL_DEFAULT_MODE"], "off")
         self.assertNotIn("CLAUDECODE", env)
         self.assertNotIn("CLAUDE_CODE_ENTRYPOINT", env)
         self.assertEqual(env["PATH"], "/b")
         self.assertIn("CLAUDECODE", base)
 
-    def test_grok_env_modes_off(self):
-        env = seat_env(grok_seat, {"CLAUDECODE": "1", "PATH": "/b"})
-        self.assertEqual(env["CAVEMAN_DEFAULT_MODE"], "off")
-        self.assertEqual(env["PONYTAIL_DEFAULT_MODE"], "off")
+    def test_grok_env_carries_seat_modes(self):
+        env = seat_env(pragmatist_grok, {"CLAUDECODE": "1", "PATH": "/b"})
+        self.assertEqual(env["CAVEMAN_DEFAULT_MODE"], "ultracave")
+        self.assertEqual(env["PONYTAIL_DEFAULT_MODE"], "ultra")
         self.assertEqual(env["PATH"], "/b")
+
+    def test_default_seat_env_is_off(self):
+        env = seat_env(grok_seat, {})
+        self.assertEqual((env["CAVEMAN_DEFAULT_MODE"], env["PONYTAIL_DEFAULT_MODE"]), ("off", "off"))
 
 
 if __name__ == "__main__":

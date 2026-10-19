@@ -17,7 +17,7 @@ PANEL = REPO / "skills/debate/panel.json"
 sys.path.insert(0, str(REPO / "skills/debate/scripts"))
 
 import run_seats  # noqa: E402
-from seats import PLAIN_PROSE_LINE, VERDICT_INSTRUCTION  # noqa: E402
+from seats import VERDICT_INSTRUCTION, load_panel, modes_lines  # noqa: E402
 
 # One committed fake serves both hosts (see its header). A stable file matters: macOS can take
 # many seconds to scan a newly written executable, which would trip the 1-2 s seat timeouts.
@@ -31,10 +31,13 @@ HANG_PIDS = 'sleep 30 & echo $! > "$me.pid"; echo $$ > "$me.seat"; wait'
 PLAN = "Ship the widget.\n"
 
 
-def panel_json(timeout=2):
-    return {"seats": {f"skeptic-{h}": {
-        "persona": "skeptic", "host": h, "model": "claude-opus-5-5" if h == "opus" else "grok-4.7",
-        "effort": "xhigh", "timeout": timeout, "system_prompt": f"You are the {h} skeptic."}
+PLAIN = "Write plain prose."  # both modes off: what a panel entry with no mode keys gets
+
+
+def panel_json(timeout=2, persona="skeptic", **modes):
+    return {"seats": {f"{persona}-{h}": {
+        "persona": persona, "host": h, "model": "claude-opus-5-5" if h == "opus" else "grok-4.7",
+        "effort": "xhigh", "timeout": timeout, "system_prompt": f"You are the {h} {persona}.", **modes}
         for h in ("opus", "grok")}}
 
 
@@ -133,16 +136,31 @@ class RunSeatsTest(unittest.TestCase):
         self.assertEqual(self.summary()["verdicts"], {"skeptic-opus": "APPROVED", "skeptic-grok": "REVISE"})
         self.assertFalse(self.summary()["approved"])
 
-    def test_prompt_has_plain_prose_and_verdict_instruction(self):
+    def test_prompt_has_plain_prose_when_modes_are_off(self):
         self.fakes(ECHO, ECHO)
         self.assertEqual(self.run_cmd(), 0)
         for host in ["opus", "grok"]:
             out = self.read(f"skeptic-{host}-output.md")
-            self.assertEqual(out.count(PLAIN_PROSE_LINE), 1)
+            self.assertEqual(out.count(PLAIN), 1)
             self.assertEqual(out.count(VERDICT_INSTRUCTION), 1)
-            self.assertIn(f"You are the {host} skeptic.\n\n{PLAN}\n\n{PLAIN_PROSE_LINE}\n{VERDICT_INSTRUCTION}", out)
+            self.assertIn(f"You are the {host} skeptic.\n\n{PLAN}\n\n{PLAIN}\n{VERDICT_INSTRUCTION}", out)
             # The prompt never rides on argv (claude's --tools is variadic).
             self.assertNotIn("Ship the widget", self.read(f"skeptic-{host}-argv.json"))
+
+    def test_future_me_seats_get_ultracave_and_ponytail_ultra_lines(self):
+        self.write_panel(panel_json(persona="future-me", caveman="ultracave", ponytail="ultra"))
+        self.fakes(ECHO, ECHO)
+        self.assertEqual(self.run_cmd(), 0)
+        seats = {s.name: s for s in load_panel(self.panel)}
+        for name, seat in seats.items():
+            out = self.read(f"{name}-output.md")
+            lines = modes_lines(seat)
+            self.assertEqual(lines.count("\n"), 1)
+            self.assertIn("Style: caveman ultracave.", lines)
+            self.assertIn("Judgment: ponytail ultra.", lines)
+            self.assertNotIn(PLAIN, out)
+            self.assertIn(f"{PLAN}\n\n{lines}\n{VERDICT_INSTRUCTION}", out)
+        self.assertIn("future-me-grok", seats)  # the Grok seat has no hooks: its prompt is the only delivery
 
     def test_uses_seat_prompt_file_when_present(self):
         self.w.mkdir()
@@ -150,7 +168,7 @@ class RunSeatsTest(unittest.TestCase):
         self.fakes(ECHO, ECHO)
         self.assertEqual(self.run_cmd(), 0)
         opus = self.read("skeptic-opus-output.md")
-        self.assertIn(f"Answer the grok skeptic's point.\n\n{PLAIN_PROSE_LINE}\n{VERDICT_INSTRUCTION}", opus)
+        self.assertIn(f"Answer the grok skeptic's point.\n\n{PLAIN}\n{VERDICT_INSTRUCTION}", opus)
         self.assertNotIn("Ship the widget", opus)
         self.assertNotIn("You are the opus skeptic.", opus)
         self.assertIn("Ship the widget", self.read("skeptic-grok-output.md"))
@@ -253,6 +271,15 @@ class RunSeatsTest(unittest.TestCase):
             self.assertEqual(set(data), {"host", "passed", "written_at", "detail"})
             self.assertEqual((data["host"], data["passed"], data["detail"]), ("seat-dry-run", True, "14/14"))
             self.assertLessEqual(abs(data["written_at"] - time.time()), 60)
+
+    def test_probe_prompt_carries_the_seat_modes(self):
+        self.write_panel(panel_json(caveman="ultracave", ponytail="off"))
+        self.fakes()
+        rc, data = self.probe()
+        self.assertEqual(rc, 0, data["detail"])
+        for seat in ["skeptic-opus", "skeptic-grok"]:
+            self.assertIn("Style: caveman ultracave.", self.read(f"{seat}-input.txt"))
+            self.assertNotIn("Judgment: ponytail", self.read(f"{seat}-input.txt"))
 
     def test_probe_passes_with_read_only_seats(self):
         self.fakes(claude='printf -- "- **Read** - read files\\n- Grep\\n- `Glob`\\n"; '

@@ -8,7 +8,21 @@ from typing import Literal
 
 CLAUDE_READ_TOOLS = "Read,Grep,Glob"
 GROK_READ_TOOLS = "read_file,grep,list_dir"
-PLAIN_PROSE_LINE = "Write plain prose. Do not use caveman or ponytail styles."
+CAVEMAN_MODES = {"off", "caveman", "ultracave", "megacave"}
+PONYTAIL_MODES = {"off", "lite", "full", "ultra"}
+# The prompt is Grok's only delivery (no hooks), so both hosts get these same lines.
+MODE_LINES = {
+    ("caveman", "ultracave"): (
+        "Style: caveman ultracave. Terse fragments; drop articles, filler, and connectives; state each "
+        "fact once. Keep every technical fact, quote, path, number, and every not/never/no/only verbatim."),
+    ("ponytail", "full"): (
+        "Judgment: ponytail full. Recommend the smallest complete change; flag speculative abstraction, "
+        "options, and scaffolding. Never cut validation, error handling that prevents data loss, or security."),
+    ("ponytail", "ultra"): (
+        "Judgment: ponytail ultra. Recommend the smallest complete change and challenge any requirement "
+        "the plan does not justify; deletion beats addition. Never cut validation, error handling that "
+        "prevents data loss, or security."),
+}
 VERDICT_INSTRUCTION = (
     "End your reply with one final line made of the word VERDICT in capitals, "
     "a colon, a space, and then either APPROVED or REVISE."
@@ -27,6 +41,8 @@ class Seat:
     effort: str
     timeout: int
     system_prompt: str
+    caveman: str = "off"
+    ponytail: str = "off"
 
 
 class PanelError(Exception):
@@ -35,17 +51,37 @@ class PanelError(Exception):
 
 def load_panel(path: Path) -> list[Seat]:
     seats = [Seat(name, **entry) for name, entry in json.loads(Path(path).read_text())["seats"].items()]
-    hosts = collections.defaultdict(set)
+    hosts, modes = collections.defaultdict(set), collections.defaultdict(set)
     for s in seats:
         if "fable" in s.model.lower():
             raise PanelError(f"{s.name}: model id {s.model!r} is not allowed")
         if s.effort != "xhigh":
             raise PanelError(f"{s.name}: effort must be xhigh, got {s.effort!r}")
+        for kind, allowed in (("caveman", CAVEMAN_MODES), ("ponytail", PONYTAIL_MODES)):
+            if getattr(s, kind) not in allowed:
+                raise PanelError(f"{s.name}: {kind} must be one of {sorted(allowed)}, got {getattr(s, kind)!r}")
         hosts[s.persona].add(s.host)
+        modes[s.persona].add((s.caveman, s.ponytail))
     for persona, h in hosts.items():
         if h != {"opus", "grok"}:
             raise PanelError(f"{persona}: needs exactly one opus and one grok seat, got {sorted(h)}")
+        # Both seats of a persona share modes, so a split comes from reasoning, not style.
+        if len(modes[persona]) != 1:
+            raise PanelError(f"{persona}: both seats need the same caveman and ponytail modes, got {sorted(modes[persona])}")
     return seats
+
+
+def modes_lines(seat: Seat) -> str:
+    lines = []
+    for kind in ("caveman", "ponytail"):
+        mode = getattr(seat, kind)
+        if mode == "off":
+            continue
+        if (kind, mode) not in MODE_LINES:
+            # No line would leave the Grok seat unstyled while the Opus hook styles its twin.
+            raise PanelError(f"{seat.name}: no prompt line for {kind} {mode!r}")
+        lines.append(MODE_LINES[kind, mode])
+    return "\n".join(lines) or "Write plain prose."
 
 
 def parse_verdict(text: str, timed_out: bool = False) -> Literal["APPROVED", "REVISE"] | None:
@@ -70,7 +106,7 @@ def seat_argv(seat: Seat, prompt_file: Path, claude_bin: str, grok_bin: str) -> 
 
 
 def seat_env(seat: Seat, base: dict[str, str]) -> dict[str, str]:
-    env = dict(base, CAVEMAN_DEFAULT_MODE="off", PONYTAIL_DEFAULT_MODE="off")
+    env = dict(base, CAVEMAN_DEFAULT_MODE=seat.caveman, PONYTAIL_DEFAULT_MODE=seat.ponytail)
     if seat.host == "opus":
         # Unset so the child claude does not treat itself as nested in this session.
         env.pop("CLAUDECODE", None)

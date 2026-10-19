@@ -30,6 +30,9 @@ class ModesFileTest(unittest.TestCase):
     def test_required_rules_present(self):
         body = (REPO / "rules/modes.md").read_text()
         for s in ["ultracave", "ponytail", "`full`", "xhigh", "Fable", "Opus 5.5",
-                  "skills/ultracave/SKILL.md", "agents this repo starts"]:
+                  "skills/ultracave/SKILL.md", "agents this repo starts",
+                  "Debate seats instead follow the modes their prompt names."]:
             self.assertIn(s, body)
-        self.assertTrue(body.rstrip().splitlines()[-1].startswith("- A headless run"))
+        last = body.rstrip().splitlines()[-1]
+        self.assertTrue(last.startswith("- A headless run"))
+        self.assertNotIn("debate seats)", last)  # seats are no longer forced to plain prose

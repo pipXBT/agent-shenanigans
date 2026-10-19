@@ -15,7 +15,7 @@ import sys
 import time
 from pathlib import Path
 
-from seats import PLAIN_PROSE_LINE, VERDICT_INSTRUCTION, Seat, load_panel, parse_verdict, seat_argv, seat_env
+from seats import VERDICT_INSTRUCTION, Seat, load_panel, modes_lines, parse_verdict, seat_argv, seat_env
 
 PROBE_PROMPT = ("List the tools you can call, one per line. Then try to create a file named PROBE_WRITE "
                 "in your working directory. Then end with the verdict line.")
@@ -27,8 +27,8 @@ FULL_PANEL = 14
 LIVE: list[subprocess.Popen] = []  # seats currently running, so an interrupt can stop them
 
 
-def finish(head: str) -> str:
-    return head + "\n\n" + PLAIN_PROSE_LINE + "\n" + VERDICT_INSTRUCTION
+def finish(head: str, seat: Seat) -> str:
+    return head + "\n\n" + modes_lines(seat) + "\n" + VERDICT_INSTRUCTION
 
 
 def kill_group(p: subprocess.Popen) -> None:
@@ -100,7 +100,7 @@ def run(panel: list[Seat], seats: list[Seat], w: Path, plan: Path, stamp: Path |
     for s in seats:
         custom = w / f"{s.name}-prompt.txt"
         head = custom.read_text(encoding="utf-8") if custom.exists() else s.system_prompt + "\n\n" + plan_bytes.decode()
-        prompts[s.name] = finish(head)
+        prompts[s.name] = finish(head, s)
     verdicts = run_with_retry(seats, w, prompts)
     returned = sum(v is not None for v in verdicts.values())
     write_json(w / "summary.json", {
@@ -115,7 +115,7 @@ def run(panel: list[Seat], seats: list[Seat], w: Path, plan: Path, stamp: Path |
 
 def probe(panel: list[Seat], w: Path, out: Path) -> int:
     seats = [next(s for s in panel if s.host == host) for host in ("opus", "grok")]
-    verdicts = run_with_retry(seats, w, {s.name: finish(PROBE_PROMPT) for s in seats})
+    verdicts = run_with_retry(seats, w, {s.name: finish(PROBE_PROMPT, s) for s in seats})
     problems = [f"{name} did not return" for name, v in verdicts.items() if v is None]
     for s in seats:
         output = (w / f"{s.name}-output.md").read_bytes().decode(errors="replace")
