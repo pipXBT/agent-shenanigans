@@ -1,794 +1,672 @@
 let meta = #{
     name: "adversarial-verification",
-    description: "Split the build into dependent tasks, then implement one at a time with skeptic, teeth, and gates.",
-    when_to_use: "Any repo. Pass args.repo, args.test_cmd, and args.tasks. Optional args.ponytail is full or ultra. One fix round per task. Stops on a second failure.",
+    description: "Run a writing-plans file one task at a time with skeptic, teeth, gate, and receipts (workflows/CONTRACT.md).",
+    when_to_use: "Started by the run-plan skill with the args in workflows/CONTRACT.md section 1, at effort xhigh. Every run is fresh; a restart reads the run state.",
     phases: [
-        #{ title: "Plan", detail: "phases, subprojects, tasks, deps, model tier" },
-        #{ title: "Tasks", detail: "implement, skeptic, teeth, gates, dependency order" },
-        #{ title: "Review", detail: "three reviewers, one skeptic per finding" },
+        #{ title: "Preflight", detail: "args, branch, clean tree" },
+        #{ title: "Plan", detail: "dependency graph, complexity, run state" },
+        #{ title: "Tasks", detail: "implement, skeptic, teeth, gate, receipt" },
+        #{ title: "Review", detail: "three reviewers, one verifier per finding, one fix" },
     ],
 };
 
-fn trimmed(s) {
-    if type_of(s) == "string" {
-        s.trim();
-        s
+// Grok executor for workflows/CONTRACT.md. Agents return raw output; every check runs
+// here in plain Rhai against the fields they return, and a missing field fails closed.
+// Rhai functions see no script variables, so the run lives in one map, `st`, and the
+// steps are methods on it (`this`). A failed check throws #{kind: "fail"}: it fails the
+// attempt inside a task and stops the run anywhere else. #{kind: "stop"} always stops.
+
+const GROK_MODEL = "grok-4.7";
+
+// rules/modes.md without its marker line; tests/workflows/test_rhai_static.py keeps them equal.
+const MODES = "- In interactive sessions and in agents this repo starts: caveman at `ultracave` and ponytail at `full`, unless the user or the task prompt sets another level. Code, comments, commits, and docs stay normal English.\n- On Grok, where these plugins' hooks do not run, an interactive session reads the caveman plugin's `skills/ultracave/SKILL.md` and the ponytail skill at `full` at session start (the path is in `grok inspect`).\n- Effort `xhigh` for every agent this repo starts unless the user says a task is simple. Never use Fable. \"Opus 5\" means Opus 5.5.\n- For agents this repo starts, if another skill or prompt names a weaker model or lower effort, this file wins unless the user says otherwise. It does not change the models other tools choose for their own agents.\n- A headless run whose output a program parses (`claude -p`, `grok --prompt-file`, Plamen workers, debate seats) writes normal prose in its required format. This rule wins over every line above for those runs.";
+
+// The git port, CONTRACT.md section 4.
+const GIT_RULES = `You are the git step of a scripted workflow. Run only the commands of the one action named on the line below that starts with "git action:", in order, and stop at the first failure. Do not judge or fix anything. Then, whatever happened, fill every report field. String fields hold the command's stdout with trailing newlines removed.
+
+".git" means the directory "git rev-parse --absolute-git-dir" prints. <base> is the action's base parameter; an action without one has no base.
+
+Report fields:
+- head: git rev-parse HEAD
+- tree: git rev-parse HEAD^{tree}
+- branch: git branch --show-current
+- default_branch: git symbolic-ref --quiet --short refs/remotes/origin/HEAD with the leading "origin/" removed; "" when that command fails
+- porcelain: git status --porcelain --untracked-files=all
+- untracked: git ls-files --others --exclude-standard, one entry per line
+- last_message: git log -1 --format=%B
+- name_status: git diff --no-renames --name-status <base> HEAD; "" without a base
+- diff: git diff --no-renames <base>..HEAD; "" without a base. Over 200000 characters: diff "", ok false, error "diff too large", every other field still filled.
+- base_is_ancestor: true when git merge-base --is-ancestor <base> HEAD exits 0; false without a base
+- state_json: set only by read_state and write_state; "" otherwise
+- ok: true when every action command exited 0 and every field command succeeded. merge-base --is-ancestor exiting 1 is a success (false); a failing symbolic-ref gives default_branch "".
+- error: "", or the failing command and the first 2000 characters of its stderr
+
+Actions:
+- snapshot(base): no commands. base may be "".
+- checkout_branch(name): git switch <name> when git rev-parse --verify --quiet refs/heads/<name> succeeds, else git switch -c <name>
+- read_state(plan_hash): cat .git/agent-shenanigans/<plan_hash>.json into state_json. A missing file gives state_json "" with ok true.
+- write_state(plan_hash, json): mkdir -p .git/agent-shenanigans; write json byte for byte to .git/agent-shenanigans/<plan_hash>.json.tmp; mv it to .git/agent-shenanigans/<plan_hash>.json; cat the result into state_json
+- teeth_revert(base, paths): .git/agent-shenanigans/aside/teeth/ must be absent or empty. Run git diff --no-renames --name-status <base> HEAD. For each path in paths: status M, T, or D: git checkout <base> -- <path>; status A: move the path to .git/agent-shenanigans/aside/teeth/<path>, creating parent folders. Any other status, or a path the diff does not list, fails the action.
+- teeth_restore(): git restore --source=HEAD --staged --worktree -- :/ then rm -rf .git/agent-shenanigans/aside/teeth
+- reset_keep(sha): git reset --keep <sha>
+- move_untracked_aside(since): move every path git ls-files --others --exclude-standard lists to .git/agent-shenanigans/aside/<since>.<n>/<path>, where n is the first integer from 1 whose folder does not exist (one n per call)
+- amend_trailer(trailer): before=$(git rev-parse HEAD^); git commit --amend --no-edit --trailer "<trailer>"; test "$(git rev-parse HEAD^)" = "$before". For this action only, base_is_ancestor is that last command's result.`;
+
+fn obj(props) { #{ "type": "object", "properties": props, "required": props.keys() } }
+fn list(items) { #{ "type": "array", "items": items } }
+
+fn schema_for(label) {
+    let s = #{ "type": "string" };
+    let b = #{ "type": "boolean" };
+    if label == "plan" {
+        let task = obj(#{ id: s, depends_on: list(s), complexity: #{ "type": "string", "enum": ["low", "medium", "high"] }, brief: s });
+        obj(#{ phases: list(obj(#{ name: s, subprojects: list(obj(#{ name: s, tasks: list(task) })) })) })
+    } else if label == "git" {
+        obj(#{ ok: b, error: s, head: s, tree: s, branch: s, default_branch: s, porcelain: s,
+            untracked: list(s), name_status: s, diff: s, last_message: s, base_is_ancestor: b, state_json: s })
+    } else if label == "test" {
+        obj(#{ test_exit: #{ "type": "integer" }, lint_exit: #{ "type": ["integer", "null"] }, tail: s })
+    } else if label == "implement" {
+        obj(#{ summary: s, issues: list(s) })
     } else {
-        ""
+        obj(#{ verdict: #{ "type": "string", "enum": ["pass", "fail"] }, evidence: s })
     }
 }
 
-fn as_bool(v, fallback) {
-    if v == () { fallback } else if type_of(v) == "bool" { v } else { fallback }
+fn capability(label) {
+    if label == "git" || label == "test" { "execute" } else if label == "implement" { "all" } else { "read-only" }
 }
 
-fn as_str(v) {
-    if v == () { "" } else if type_of(v) == "string" { v } else { "" }
-}
-
-fn out_of(slot) {
-    if slot == () {
-        ()
-    } else if !slot.success {
-        ()
-    } else if slot.output == () {
-        ()
-    } else if type_of(slot.output) != "map" {
-        ()
+// The one place the host spawns an agent. Fixture mode returns the label's next scripted output.
+fn call_agent(label, prompt) {
+    let opts = #{
+        label: label,
+        model: global::GROK_MODEL,
+        capability_mode: capability(label),
+        output_schema: schema_for(label),
+    };
+    if opts.model.to_lower().contains("fable") {
+        throw #{ kind: "stop", why: "refused model " + opts.model };
+    }
+    let modes = global::MODES;
+    modes.replace("`full`", "`" + this.args.ponytail + "`");
+    let full = modes + "\n\nRun nonce: " + this.args.run_nonce + "\n\n" + prompt;
+    let fx = this.args.fixture;
+    if fx == () {
+        let r = agent(full, opts);
+        if type_of(r) == "map" && r.success == true { r.output } else { () }
     } else {
-        slot.output
+        let n = this.used[label] ?? 0;
+        this.used[label] = n + 1;
+        let outs = if type_of(fx) == "map" && type_of(fx.outputs) == "map" { fx.outputs[label] } else { () };
+        if type_of(outs) == "array" && n < outs.len() { outs[n] } else { () }
     }
 }
 
-fn gate_pass(slot) {
-    let o = out_of(slot);
-    if o == () { false } else { as_bool(o.test_ok, false) && as_bool(o.clippy_ok, false) }
+fn git(action, params) {
+    let p = "Repo: " + this.args.repo + " (cd there first)\n\n" + global::GIT_RULES;
+    p += "\n\ngit action: " + action + " " + json_encode(params);
+    this.call_agent("git", p)
 }
 
-fn skeptic_pass(slot) {
-    let o = out_of(slot);
-    if o == () { false } else { trimmed(as_str(o.verdict)) == "pass" }
-}
+fn fail(why) { #{ kind: "fail", why: why } }
+fn check(ok, why) { if ok != true { throw fail(why); } }
+fn is_fail(e) { type_of(e) == "map" && e.kind == "fail" }
+// Inside a stopping block a failed check stops the run (CONTRACT.md section 5, Failures).
+fn as_stop(e) { if is_fail(e) { #{ kind: "stop", why: e.why } } else { e } }
 
-fn teeth_pass(slot) {
-    let o = out_of(slot);
-    if o == () { false } else { as_bool(o.teeth_ok, false) && as_bool(o.restored, false) }
-}
-
-fn task_field(t, name) {
-    if t == () {
-        ""
-    } else if type_of(t) != "map" {
-        ""
-    } else if t[name] == () {
-        ""
-    } else {
-        as_str(t[name])
+// One field of a git report. A missing report, ok: false (except "diff too large" for
+// fields other than diff), a missing field, or a wrong type fails the check.
+fn field_of(r, name, f, t) {
+    let usable = type_of(r) == "map" && (r.ok == true || (r.ok == false && r.error == "diff too large" && f != "diff"));
+    let v = if usable { r[f] } else { () };
+    if type_of(v) != t {
+        let why = if usable { "missing or wrong type" } else { "report missing or not ok" };
+        throw fail(name + "." + f + ": " + why);
     }
+    v
 }
 
-let result_schema = #{
-    "type": "object",
-    "properties": #{
-        "summary": #{ "type": "string" },
-        "committed": #{ "type": "boolean" },
-        "commit_sha": #{ "type": "string" },
-        "verdict": #{ "type": "string" },
-        "evidence": #{ "type": "string" },
-        "test_ok": #{ "type": "boolean" },
-        "clippy_ok": #{ "type": "boolean" },
-        "teeth_ok": #{ "type": "boolean" },
-        "restored": #{ "type": "boolean" },
-        "issues": #{ "type": "array", "items": #{ "type": "string" } },
-    },
-};
+fn text_of(v) { if type_of(v) == "string" { v } else { "" } }
+fn is_str(v) { type_of(v) == "string" && v != "" }
+fn lint_given(a) { is_str(a.lint_cmd) }
 
-let findings_schema = #{
-    "type": "object",
-    "properties": #{
-        "findings": #{
-            "type": "array",
-            "maxItems": 8,
-            "items": #{
-                "type": "object",
-                "properties": #{
-                    "file": #{ "type": "string" },
-                    "issue": #{ "type": "string" },
-                    "severity": #{ "type": "string" },
-                },
-            },
-        },
-        "summary": #{ "type": "string" },
-    },
-};
-
-let verdict_schema = #{
-    "type": "object",
-    "properties": #{
-        "real": #{ "type": "boolean" },
-        "reason": #{ "type": "string" },
-        "evidence": #{ "type": "string" },
-        "severity": #{ "type": "string" },
-    },
-};
-
-let repo = if args == () { "" } else { trimmed(as_str(args.repo)) };
-let test_cmd = if args == () { "" } else { trimmed(as_str(args.test_cmd)) };
-let lint_cmd = if args == () { "" } else { trimmed(as_str(args.lint_cmd)) };
-let branch = if args == () { "" } else { trimmed(as_str(args.branch)) };
-let extra_rules = if args == () { "" } else { as_str(args.rules) };
-let forbid = if args == () { "" } else { as_str(args.forbid) };
-let base_sha = if args == () { "" } else { trimmed(as_str(args.base_sha)) };
-let do_review = if args == () { true } else if args.review == () { true } else { as_bool(args.review, true) };
-let ponytail = "full";
-if args != () && args.ponytail != () && trimmed(as_str(args.ponytail)) == "ultra" {
-    ponytail = "ultra";
-}
-
-let tasks = [];
-if args != () && args.tasks != () && type_of(args.tasks) == "array" {
-    for t in args.tasks {
-        tasks.push(t);
-    }
-} else if args != () && trimmed(as_str(args.title)) != "" {
-    tasks.push(#{
-        title: as_str(args.title),
-        brief: as_str(args.brief),
-        plan: as_str(args.plan),
-    });
-}
-
-if repo == "" || test_cmd == "" || tasks.len() == 0 {
-    pause("verification", "Pass args.repo, args.test_cmd, and args.tasks (or args.title plus args.brief). Optional: lint_cmd, branch, rules, forbid, base_sha, review.");
-}
-
-let rules = "";
-rules += "Repo: ";
-rules += repo;
-rules += "\ncd there before any command.\n";
-if branch != "" {
-    rules += "Commit only on branch ";
-    rules += branch;
-    rules += ".\n";
-}
-rules += "Never commit to main. Never push. Never git stash. Never add a Co-Authored-By trailer.\n";
-rules += "Stage only files this task changed. Do not stage secrets or .grok/.\n";
-rules += "Test command: ";
-rules += test_cmd;
-rules += "\n";
-if lint_cmd != "" {
-    rules += "Lint command: ";
-    rules += lint_cmd;
-    rules += "\n";
-} else {
-    rules += "No lint command. Do not invent one.\n";
-}
-if extra_rules != "" {
-    rules += "Caller rules:\n";
-    rules += extra_rules;
-    rules += "\n";
-}
-if forbid != "" {
-    rules += "Do not change these. A finding that only restates them is out of scope:\n";
-    rules += forbid;
-    rules += "\n";
-}
-
-fn modes(p, level) {
-    let s = "";
-    s += "Follow the caveman skill at ultra and the ponytail skill at ";
-    s += level;
-    s += ".\n";
-    s += "Caveman ultra: drop articles and filler. Fragments are OK. Keep not, never, no, only, and except. Do not invent abbreviations. Do not use arrows. State each fact once.\n";
-    s += "Ponytail ";
-    s += level;
-    s += ": smallest change that finishes the task. No extra options, wrappers, or abstractions. Deletion beats addition. A bug fix goes in the shared code. End with what you skipped and the risk.\n";
-    if level == "ultra" {
-        s += "Question any part the need does not justify. Do not build that part.\n";
-    }
-    s += "Code, comments, commit messages, and schema JSON stay normal English.\n";
-    s += "This run is Grok. Use the strongest Grok model. Effort is xhigh. Do not lower effort. Never use Fable.\n";
-    s += "A Claude run of the same task uses effort xhigh and the recorded Claude model: Haiku 5.5, Sonnet 5.5, or Opus 5.5. Opus 5 means Opus 5.5.\n\n";
-    s += p;
-    s
-}
-
-fn listed(ids, id) {
-    let hit = false;
-    for x in ids {
-        if x == id { hit = true; }
-    }
-    hit
-}
-
-fn as_str_list(v) {
-    let out = [];
-    if v != () && type_of(v) == "array" {
-        for item in v {
-            let s = trimmed(as_str(item));
-            if s != "" { out.push(s); }
-        }
-    }
-    out
-}
-
-fn complexity_of(raw) {
-    if raw == "low" || raw == "medium" || raw == "high" { raw } else { "high" }
-}
-
-fn claude_model_for(complexity) {
-    if complexity == "low" {
-        "Haiku 5.5"
-    } else if complexity == "medium" {
-        "Sonnet 5.5"
-    } else {
-        "Opus 5.5"
-    }
-}
-
-fn next_claude(model) {
-    if model == "Haiku 5.5" {
-        "Sonnet 5.5"
-    } else if model == "Sonnet 5.5" {
-        "Opus 5.5"
-    } else {
-        "Opus 5.5"
-    }
-}
-
-fn deps_done(t, done_ids) {
+fn strs(v) {
+    if type_of(v) != "array" { return false; }
     let ok = true;
-    for d in t.depends_on {
-        if !listed(done_ids, d) { ok = false; }
+    for x in v { if type_of(x) != "string" { ok = false; } }
+    ok
+}
+
+fn names(xs) {
+    let s = "";
+    let n = 0;
+    for x in xs {
+        if n > 0 { s += ", "; }
+        s += x;
+        n += 1;
+    }
+    if n == 0 { "none" } else { s }
+}
+
+fn same_json(text, value) {
+    let back = ();
+    try { back = parse_json(text); } catch { }
+    type_of(back) == "map" && json_encode(back) == json_encode(value)
+}
+
+fn tracked_clean(r, name) {
+    let ok = true;
+    for l in field_of(r, name, "porcelain", "string").split("\n") {
+        if l != "" && !l.starts_with("??") { ok = false; }
     }
     ok
 }
 
-fn ready_tasks(pending, done_ids) {
+// The paths of a --no-renames --name-status listing.
+fn changed_paths(ns) {
     let out = [];
-    for t in pending {
-        if deps_done(t, done_ids) { out.push(t); }
+    for l in ns.split("\n") {
+        if l != "" {
+            let parts = l.split("\t");
+            out.push(parts[parts.len() - 1]);
+        }
     }
     out
 }
 
-fn without_id(pending, id) {
-    let out = [];
-    for t in pending {
-        if t.id != id { out.push(t); }
-    }
-    out
+// Equal to a listed path, or under a listed entry that ends in "/".
+fn listed(p, xs) {
+    let hit = false;
+    for e in xs { if e == p || (e.ends_with("/") && p.starts_with(e)) { hit = true; } }
+    hit
 }
 
-fn shares_file(a, b) {
-    if a.files.len() == 0 || b.files.len() == 0 {
-        true
-    } else {
-        let hit = false;
-        for x in a.files {
-            for y in b.files {
-                if x == y { hit = true; }
+fn is_docs(p) {
+    p.ends_with(".md") || p.ends_with(".rst") || p.ends_with(".txt") || p.ends_with(".adoc") || p.starts_with("docs/")
+}
+
+fn matches(p, globs) {
+    let hit = false;
+    for g in globs { if glob_at(g.split("/"), 0, p.split("/"), 0) { hit = true; } }
+    hit
+}
+
+// Whole-path glob: a "**" segment spans zero or more whole segments; * and ? stay in one.
+fn glob_at(gs, i, ps, j) {
+    if i == gs.len() { return j == ps.len(); }
+    if gs[i] == "**" {
+        for k in j..=ps.len() { if glob_at(gs, i + 1, ps, k) { return true; } }
+        return false;
+    }
+    j < ps.len() && seg_match(gs[i], ps[j]) && glob_at(gs, i + 1, ps, j + 1)
+}
+
+fn seg_match(g, s) {
+    let gi = 0;
+    let si = 0;
+    let star = -1;
+    let mark = 0;
+    while si < s.len() {
+        if gi < g.len() && g[gi] != '*' && (g[gi] == '?' || g[gi] == s[si]) {
+            gi += 1;
+            si += 1;
+        } else if gi < g.len() && g[gi] == '*' {
+            star = gi;
+            mark = si;
+            gi += 1;
+        } else if star >= 0 {
+            gi = star + 1;
+            mark += 1;
+            si = mark;
+        } else {
+            return false;
+        }
+    }
+    while gi < g.len() && g[gi] == '*' { gi += 1; }
+    gi == g.len()
+}
+
+fn is_hash(v) {
+    if type_of(v) != "string" || v.len() != 64 { return false; }
+    let ok = true;
+    for c in v { if !"0123456789abcdef".contains(c) { ok = false; } }
+    ok
+}
+
+fn tasks_ok(ts) {
+    if type_of(ts) != "array" { return false; }
+    let ids = [];
+    for t in ts {
+        if type_of(t) != "map" || !is_str(t.id) || ids.contains(t.id) || type_of(t.title) != "string"
+            || !strs(t.files) || !strs(t.tests) || !["code", "refactor", "docs", "test"].contains(t.kind)
+            || !["marker", "derived"].contains(t.kind_source)
+            || (t.complexity != () && !["low", "medium", "high"].contains(t.complexity)) {
+            return false;
+        }
+        ids.push(t.id);
+    }
+    true
+}
+
+fn check_args() {
+    let a = this.args;
+    check(type_of(a) == "map", "args: missing");
+    let bad = [];
+    for k in ["repo", "test_cmd", "plan_path", "run_nonce"] { if !is_str(a[k]) { bad.push(k); } }
+    for k in ["lint_cmd", "branch"] { if a[k] != () && type_of(a[k]) != "string" { bad.push(k); } }
+    if !is_hash(a.plan_hash) { bad.push("plan_hash"); }
+    if type_of(a.rules) != "map" || !strs(a.rules.high_risk) || !strs(a.rules.test_globs) { bad.push("rules"); }
+    if !strs(a.forbid) { bad.push("forbid"); }
+    if a.review != () && type_of(a.review) != "bool" { bad.push("review"); }
+    if !["full", "ultra"].contains(a.ponytail) { bad.push("ponytail"); }
+    if !tasks_ok(a.tasks) { bad.push("tasks"); }
+    check(bad.len() == 0, "args: missing or wrong type: " + names(bad));
+}
+
+// P1/P2: resolve the branch, refuse the default branch, require a clean tree.
+fn preflight() {
+    let P1 = this.git("snapshot", #{ base: "" });
+    let cur = field_of(P1, "P1", "branch", "string");
+    let dflt = field_of(P1, "P1", "default_branch", "string");
+    let B = this.args.branch ?? cur;
+    check(dflt != "", "P1.default_branch: empty, the default branch cannot be determined");
+    check(B != "", "P1.branch: empty, HEAD is detached");
+    check(B != dflt, "P1.default_branch: " + B + " is the default branch");
+    check(field_of(P1, "P1", "porcelain", "string") == "", "P1.porcelain: the tree is not clean");
+    if this.args.branch != () && this.args.branch != cur {
+        let P2 = this.git("checkout_branch", #{ name: B });
+        check(field_of(P2, "P2", "branch", "string") == B, "P2.branch: not on " + B + " after checkout");
+        check(field_of(P2, "P2", "porcelain", "string") == "", "P2.porcelain: the tree is not clean after checkout");
+    }
+    B
+}
+
+fn plan_prompt() {
+    let a = this.args;
+    let p = "You plan the run of an implementation plan. Do not change anything.\nRepo: " + a.repo;
+    p += "\nPlan file: " + a.plan_path + "\n\nTasks:\n";
+    for t in a.tasks {
+        p += "- id " + t.id + ": " + t.title + " (kind " + t.kind + "; files: " + names(t.files);
+        p += "; tests: " + names(t.tests) + ")\n";
+    }
+    p += "\nRead each task's section in the plan file with read_file and grep; do not answer from memory. ";
+    p += "Group the tasks into phases and subprojects. Return every task above exactly once, with:\n";
+    p += "- id: exactly as listed\n";
+    p += "- depends_on: the ids of the tasks that must land before it, never its own\n";
+    p += "- complexity: low, medium, or high. low: one file, and the plan quotes the change. ";
+    p += "medium: a few files, the plan is clear, and judgment stays local. ";
+    p += "high: a design choice, security, money, or a gap in the plan.\n";
+    p += "- brief: the task's full text from the plan file, verbatim";
+    p
+}
+
+// The plan stage: graph checks and complexity in code, then Kahn order by waves.
+fn plan_order() {
+    let plan = this.call_agent("plan", this.plan_prompt());
+    check(type_of(plan) == "map" && type_of(plan.phases) == "array", "plan.phases: missing");
+    let entries = [];
+    for ph in plan.phases {
+        check(type_of(ph) == "map" && type_of(ph.subprojects) == "array", "plan: a phase has no subprojects list");
+        for sp in ph.subprojects {
+            check(type_of(sp) == "map" && type_of(sp.tasks) == "array", "plan: a subproject has no tasks list");
+            for e in sp.tasks { entries.push(e); }
+        }
+    }
+    let ids = [];
+    for t in this.args.tasks { ids.push(t.id); }
+    let by_id = #{};
+    for e in entries {
+        let id = if type_of(e) == "map" { e.id } else { () };
+        check(type_of(id) == "string" && ids.contains(id), "plan: task ids differ from the plan file");
+        check(!by_id.contains(id), "plan: a task id appears more than once");
+        by_id[id] = e;
+    }
+    check(by_id.len() == ids.len(), "plan: task ids differ from the plan file");
+    let tasks = [];
+    for t in this.args.tasks {
+        let e = by_id[t.id];
+        let deps_ok = type_of(e.depends_on) == "array";
+        if deps_ok { for d in e.depends_on { if d == t.id || !ids.contains(d) { deps_ok = false; } } }
+        check(deps_ok, "plan: task " + t.id + " depends_on names an unknown id or itself");
+        check(type_of(e.brief) == "string", "plan: task " + t.id + " has no brief");
+        let c = t.complexity ?? e.complexity;
+        check(["low", "medium", "high"].contains(c), "plan: task " + t.id + " complexity is not low, medium, or high");
+        let floor = t.files.len() > 3;
+        for p in t.files { if matches(p, this.args.rules.high_risk) { floor = true; } }
+        let x = t;
+        x.depends_on = e.depends_on;
+        x.brief = e.brief;
+        x.complexity = if floor && c == "low" { "medium" } else { c };
+        tasks.push(x);
+    }
+    let placed = [];
+    let order = [];
+    while order.len() < tasks.len() {
+        let wave = [];
+        let left = [];
+        for t in tasks {
+            if !placed.contains(t.id) {
+                left.push(t.id);
+                let ready = true;
+                for d in t.depends_on { if !placed.contains(d) { ready = false; } }
+                if ready { wave.push(t); }
             }
         }
-        hit
+        check(wave.len() > 0, "plan: dependency cycle among " + names(left));
+        let wave_ids = [];
+        for t in wave {
+            wave_ids.push(t.id);
+            placed.push(t.id);
+            order.push(t);
+        }
+        log("parallel-eligible: " + names(wave_ids));
     }
+    order
 }
 
-fn wave_note(ready) {
-    let ids = "";
-    let n = 0;
-    let parallel_ok = true;
-    for t in ready {
-        if n > 0 { ids += ", "; }
-        ids += t.id;
-        n += 1;
+fn write_state() {
+    let W = this.git("write_state", #{ plan_hash: this.args.plan_hash, json: json_encode(this.state) });
+    check(same_json(field_of(W, "W", "state_json", "string"), this.state), "W.state_json: differs from the state written");
+}
+
+fn state_ok(s, hash) {
+    if type_of(s) != "map" || s.plan_hash != hash || type_of(s.run_start) != "string" || type_of(s.tasks) != "map" {
+        return false;
     }
-    for a in ready {
-        for b in ready {
-            if a.id != b.id && shares_file(a, b) { parallel_ok = false; }
+    let ok = true;
+    for id in s.tasks.keys() {
+        let t = s.tasks[id];
+        if type_of(t) != "map" || type_of(t.pre) != "string" || (t.receipt != () && type_of(t.receipt) != "string") {
+            ok = false;
         }
     }
-    if n > 1 && parallel_ok {
-        log("parallel-eligible " + ids + " — run one at a time so gates read one HEAD");
-    } else if n > 1 {
-        log("sequential " + ids + " — shared or unknown files");
-    } else if n == 1 {
-        log("sequential " + ids);
-    }
+    ok
 }
 
-fn normalize_plan(plan) {
-    if plan == () || type_of(plan) != "map" || plan["phases"] == () || type_of(plan["phases"]) != "array" {
-        #{ ok: false, error: "Plan agent returned no phases.", tasks: [] }
-    } else {
-        let tasks = [];
-        let seen = [];
-        let order = 0;
+// The newest receipt: the one no other done task starts from. Following pre links from it
+// must visit every done task and end at run_start, so a corrupt state never resets below it.
+fn restart_target(state, done) {
+    if done.len() == 0 { return state.run_start; }
+    let tips = [];
+    for id in done {
+        let starts = false;
+        for o in done { if o != id && state.tasks[o].pre == state.tasks[id].receipt { starts = true; } }
+        if !starts { tips.push(id); }
+    }
+    check(tips.len() == 1, "ST.state_json: the receipts do not form one chain");
+    let by_receipt = #{};
+    for id in done { by_receipt[state.tasks[id].receipt] = id; }
+    let sha = state.tasks[tips[0]].receipt;
+    let steps = 0;
+    while by_receipt.contains(sha) && steps <= done.len() {
+        sha = state.tasks[by_receipt[sha]].pre;
+        steps += 1;
+    }
+    check(steps == done.len() && sha == state.run_start, "ST.state_json: the receipts do not chain back to run_start");
+    state.tasks[tips[0]].receipt
+}
+
+// Fresh run or restart. Returns the ids done in an earlier run.
+fn run_state() {
+    let ST = this.git("read_state", #{ plan_hash: this.args.plan_hash });
+    let text = field_of(ST, "ST", "state_json", "string");
+    let done = [];
+    if text == "" {
+        this.state = #{ plan_hash: this.args.plan_hash, run_start: field_of(ST, "ST", "head", "string"), tasks: #{} };
+        this.write_state();
+        return done;
+    }
+    let state = ();
+    try { state = parse_json(text); } catch { }
+    check(state_ok(state, this.args.plan_hash), "ST.state_json: not a run state for this plan");
+    let R0 = this.git("snapshot", #{ base: state.run_start });
+    check(field_of(R0, "R0", "base_is_ancestor", "bool"), "R0.base_is_ancestor: HEAD does not descend from run_start");
+    check(field_of(R0, "R0", "porcelain", "string") == "", "R0.porcelain: the tree is dirty (an interrupted teeth step?)");
+    let head = field_of(R0, "R0", "head", "string");
+    for id in state.tasks.keys() {
+        let receipt = state.tasks[id].receipt;
+        if receipt != () {
+            let Rr = this.git("snapshot", #{ base: receipt });
+            if field_of(Rr, "R(" + id + ")", "base_is_ancestor", "bool") { done.push(id); }
+        }
+    }
+    let X = restart_target(state, done);
+    if head != X {
+        let RK = this.git("reset_keep", #{ sha: X });
+        check(field_of(RK, "RK", "head", "string") == X, "RK.head: the reset did not land on " + X);
+        check(field_of(RK, "RK", "porcelain", "string") == "", "RK.porcelain: the tree is not clean after the reset");
+    }
+    for id in state.tasks.keys() { if !done.contains(id) { state.tasks[id].receipt = (); } }
+    this.state = state;
+    this.write_state();
+    done
+}
+
+fn implement_prompt(t, pre, failure) {
+    let a = this.args;
+    let p = "Implement one task from a plan. Work in " + a.repo + ", on the current branch.\n";
+    p += "Task " + t.id + ": " + t.title + " (kind " + t.kind + ")\n";
+    p += "Files: " + names(t.files) + "\nTests: " + names(t.tests) + "\n";
+    p += "Never touch paths matching: " + names(a.forbid) + "\nTest command: " + a.test_cmd + "\n";
+    if lint_given(a) { p += "Lint command: " + a.lint_cmd + "\n"; }
+    p += "\nBrief:\n" + t.brief;
+    if failure != "" {
+        p += "\n\nAn earlier attempt at this task failed: " + failure;
+        p += "\nThe branch is back at the pre-task commit " + pre + ". Start again from there.";
+    }
+    p += "\n\nRead the files the brief names before editing. Do this task only; do not start the next one. ";
+    p += "TDD when the task names a test. Run the test command, and the lint command when one is set.\n";
+    p += "Conventional commit; say why in the body. Stage only files this task changed. Never push. No co-author trailer.\n";
+    p += "Commit your work and leave the tree clean.";
+    p
+}
+
+fn test_prompt() {
+    let a = this.args;
+    let p = "Repo: " + a.repo + " (cd there first)\n\n";
+    p += "You are the test step of a scripted workflow. Do not judge or fix anything.\n1. Run: " + a.test_cmd + "\n2. ";
+    if lint_given(a) { p += "Run: " + a.lint_cmd; } else { p += "There is no lint command; skip this step."; }
+    p += "\nReport test_exit (the exit code of step 1), lint_exit (the exit code of step 2, or null when it was skipped), ";
+    p += "and tail (the last 200 lines of their combined output).";
+    p
+}
+
+fn skeptic_prompt(t, name_status, diff, changed) {
+    let a = this.args;
+    let q = "Does the diff do what the brief says, and nothing outside it?";
+    if t.kind == "refactor" {
+        q = "Is behaviour unchanged?";
+        let edits = [];
+        for p in changed { if listed(p, t.tests) || matches(p, a.rules.test_globs) { edits.push(p); } }
+        if edits.len() > 0 {
+            q += " It changes test files (" + names(edits) + "): confirm no assertion was removed or weakened.";
+        }
+    } else if t.kind == "docs" {
+        q = "Does the diff change documentation only?";
+    } else if t.kind == "test" {
+        q = "Do the new tests assert real behaviour?";
+    }
+    let p = "You are the skeptic for one task of a plan. Read the repo at " + a.repo + " as needed; change nothing.\n";
+    p += "Task " + t.id + ": " + t.title + " (kind " + t.kind + ")\n";
+    p += "Files: " + names(t.files) + "\nTests: " + names(t.tests) + "\nForbidden paths: " + names(a.forbid) + "\n\n";
+    p += "Brief:\n" + t.brief + "\n\nChanged paths (git diff --name-status):\n" + name_status + "\n\nDiff:\n" + diff;
+    p += "\n\nQuestion: " + q + "\n";
+    p += "Fail closed: return verdict \"pass\" only when the answer is clearly yes, else \"fail\". ";
+    p += "evidence quotes the lines you checked.";
+    p
+}
+
+fn set_result(k, v) {
+    let i = this.results.len() - 1;
+    this.results[i][k] = v;
+}
+
+// Steps 2-6 of one attempt (CONTRACT.md section 5). A fail fails the attempt; a stop ends the run.
+fn attempt(t, B, pre, failure) {
+    let a = this.args;
+    this.call_agent("implement", this.implement_prompt(t, pre, failure));
+    let S2 = this.git("snapshot", #{ base: pre });
+    let H = field_of(S2, "S2", "head", "string");
+    check(H != pre, "S2.head: equals the pre-task commit, nothing was committed");
+    check(field_of(S2, "S2", "base_is_ancestor", "bool"), "S2.base_is_ancestor: the pre-task commit is not an ancestor of HEAD");
+    check(field_of(S2, "S2", "porcelain", "string") == "", "S2.porcelain: the tree is not clean after implement");
+    let T = field_of(S2, "S2", "tree", "string");
+    let name_status = field_of(S2, "S2", "name_status", "string");
+    let changed = changed_paths(name_status);
+
+    check(S2.ok == true, "S2.ok: " + text_of(S2.error));
+    let sk = this.call_agent("skeptic", this.skeptic_prompt(t, name_status, field_of(S2, "S2", "diff", "string"), changed));
+    let sk = if type_of(sk) == "map" { sk } else { #{} };
+    check(sk.verdict == "pass", "skeptic.verdict: " + json_encode(sk.verdict) + ": " + text_of(sk.evidence));
+
+    if t.kind == "code" {
+        let P = [];
+        for p in changed { if listed(p, t.files) && !listed(p, t.tests) { P.push(p); } }
+        check(P.len() > 0, "S2.name_status: no production path in files changed");
+        this.set_result("teeth", "ran");
+        let TR = this.git("teeth_revert", #{ base: pre, paths: P });
+        let TT = this.call_agent("test", this.test_prompt());
+        let RS = this.git("teeth_restore", #{});
+        try {
+            check(field_of(RS, "RS", "head", "string") == H, "RS.head: HEAD moved during teeth");
+            check(field_of(RS, "RS", "tree", "string") == T, "RS.tree: the tree changed during teeth");
+            check(tracked_clean(RS, "RS"), "RS.porcelain: tracked changes remain after the teeth restore");
+        } catch (e) {
+            throw as_stop(e);
+        }
+        check(field_of(TR, "TR", "head", "string") == H, "TR.head: the teeth revert did not run on HEAD");
+        let te = if type_of(TT) == "map" { TT.test_exit } else { () };
+        check(type_of(te) == "i64" && te != 0, "TT.test_exit: " + json_encode(te) + ", the tests do not fail without the change");
+    } else if t.kind == "docs" {
         let bad = "";
-        for stage in plan["phases"] {
-            let subs = if stage == () { () } else { stage["subprojects"] };
-            if bad == "" && (subs == () || type_of(subs) != "array") {
-                bad = "A phase is missing subprojects.";
-            } else if bad == "" {
-                let stage_name = task_field(stage, "name");
-                for sub in subs {
-                    let task_list = if sub == () { () } else { sub["tasks"] };
-                    if bad == "" && (task_list == () || type_of(task_list) != "array") {
-                        bad = "A subproject is missing tasks.";
-                    } else if bad == "" {
-                        let sub_name = task_field(sub, "name");
-                        for task in task_list {
-                            if bad == "" {
-                                let id = task_field(task, "id");
-                                let title = task_field(task, "title");
-                                if id == "" || title == "" {
-                                    bad = "A task is missing id or title.";
-                                } else if listed(seen, id) {
-                                    bad = "Duplicate task id " + id;
-                                } else {
-                                    seen.push(id);
-                                    let complexity = complexity_of(task_field(task, "complexity"));
-                                    let model = claude_model_for(complexity);
-                                    let given = task_field(task, "claude_model");
-                                    if given != "" && given != model {
-                                        log("model tier corrected " + id);
-                                    }
-                                    let deps = if task == () { [] } else { as_str_list(task["depends_on"]) };
-                                    let files = if task == () { [] } else { as_str_list(task["files"]) };
-                                    tasks.push(#{
-                                        id: id,
-                                        title: title,
-                                        brief: task_field(task, "brief"),
-                                        plan: task_field(task, "plan"),
-                                        depends_on: deps,
-                                        complexity: complexity,
-                                        claude_model: model,
-                                        grok_model: "strongest Grok",
-                                        grok_effort: "xhigh",
-                                        files: files,
-                                        phase_name: stage_name,
-                                        subproject: sub_name,
-                                        order: order,
-                                    });
-                                    order += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        for p in changed {
+            if bad == "" && (!is_docs(p) || listed(p, t.tests) || matches(p, a.rules.test_globs)) { bad = p; }
         }
-        if bad != "" {
-            #{ ok: false, error: bad, tasks: [] }
-        } else if tasks.len() == 0 {
-            #{ ok: false, error: "Plan agent returned no tasks.", tasks: [] }
+        check(bad == "", "S2.name_status: " + bad + " is not a documentation path");
+    }
+
+    let G1 = this.call_agent("test", this.test_prompt());
+    let G1 = if type_of(G1) == "map" { G1 } else { #{} };
+    check(G1.test_exit == 0, "G1.test_exit: " + json_encode(G1.test_exit) + ", the tests fail");
+    if lint_given(a) { check(G1.lint_exit == 0, "G1.lint_exit: " + json_encode(G1.lint_exit) + ", lint fails"); }
+    let G2 = this.git("snapshot", #{ base: pre });
+    check(field_of(G2, "G2", "head", "string") == H, "G2.head: HEAD moved after implement");
+    let branch = field_of(G2, "G2", "branch", "string");
+    check(branch == B, "G2.branch: " + branch + " is not " + B);
+    check(branch != field_of(G2, "G2", "default_branch", "string"), "G2.default_branch: on the default branch");
+    check(tracked_clean(G2, "G2"), "G2.porcelain: tracked changes are not committed");
+    for p in changed_paths(field_of(G2, "G2", "name_status", "string")) {
+        check(listed(p, t.files) || listed(p, t.tests), "G2.name_status: " + p + " is outside files and tests");
+        check(!matches(p, a.forbid), "G2.name_status: " + p + " matches forbid");
+    }
+
+    let S6 = this.git("snapshot", #{ base: "" });
+    check(field_of(S6, "S6", "head", "string") == H, "S6.head: HEAD moved after the gate");
+    check(tracked_clean(S6, "S6"), "S6.porcelain: tracked changes appeared after the gate");
+    let trailer = "Task-Id: " + a.plan_hash.sub_string(0, 12) + "/" + t.id;
+    try {
+        let A = this.git("amend_trailer", #{ trailer: trailer });
+        let err = if type_of(A) == "map" { text_of(A.error) } else { "missing" };
+        check(type_of(A) == "map" && A.ok == true, "A.ok: " + err);
+        let receipt = field_of(A, "A", "head", "string");
+        check(receipt != H, "A.head: the amend made no new commit");
+        check(field_of(A, "A", "tree", "string") == field_of(G2, "G2", "tree", "string"), "A.tree: the amend changed the tree");
+        check(field_of(A, "A", "base_is_ancestor", "bool"), "A.base_is_ancestor: the amend changed the parent");
+        check(field_of(A, "A", "last_message", "string").split("\n").contains(trailer), "A.last_message: no line " + trailer);
+        this.state.tasks[t.id].receipt = receipt;
+        this.write_state();
+        if field_of(A, "A", "untracked", "array").len() > 0 {
+            let MU = this.git("move_untracked_aside", #{ since: pre });
+            check(field_of(MU, "MU", "untracked", "array").len() == 0, "MU.untracked: files remain after moving them aside");
+            check(field_of(MU, "MU", "porcelain", "string") == "", "MU.porcelain: the tree is not clean");
+        }
+    } catch (e) {
+        throw as_stop(e);
+    }
+}
+
+// F1-F3: back to the pre-task commit with a clean tree. Any failed check here stops the run.
+fn restore(pre) {
+    let F1 = this.git("teeth_restore", #{});
+    check(tracked_clean(F1, "F1"), "F1.porcelain: tracked changes remain after the restore");
+    let F2 = this.git("reset_keep", #{ sha: pre });
+    check(field_of(F2, "F2", "head", "string") == pre, "F2.head: the reset did not land on " + pre);
+    let last = F2;
+    let last_name = "F2";
+    if field_of(F2, "F2", "untracked", "array").len() > 0 {
+        let F3 = this.git("move_untracked_aside", #{ since: pre });
+        check(field_of(F3, "F3", "untracked", "array").len() == 0, "F3.untracked: files remain after moving them aside");
+        last = F3;
+        last_name = "F3";
+    }
+    check(field_of(last, last_name, "porcelain", "string") == "", last_name + ".porcelain: the tree is not clean");
+}
+
+// Step 1, then at most two attempts: Grok retries once, with a new agent on the same model.
+fn run_task(t, B) {
+    this.results.push(#{ id: t.id, outcome: "fail", attempts: 0, teeth: "skipped:" + t.kind, model: "" });
+    let S1 = this.git("snapshot", #{ base: "" });
+    check(field_of(S1, "S1", "porcelain", "string") == "", "S1.porcelain: the tree is not clean");
+    let pre = field_of(S1, "S1", "head", "string");
+    this.state.tasks[t.id] = #{ pre: pre, receipt: () };
+    this.write_state();
+    let failure = "";
+    let passed = false;
+    let n = 0;
+    while !passed && n < 2 {
+        n += 1;
+        this.set_result("attempts", n);
+        this.set_result("model", global::GROK_MODEL);
+        this.set_result("teeth", "skipped:" + t.kind);
+        try {
+            this.attempt(t, B, pre, failure);
+            passed = true;
+        } catch (e) {
+            if !is_fail(e) { throw e; }
+            failure = "attempt " + n.to_string() + ": " + e.why;
+        }
+        if !passed { this.restore(pre); }
+    }
+    check(passed, "task " + t.id + " failed 2 attempts; last: " + failure);
+    this.set_result("outcome", "pass");
+}
+
+fn run_all() {
+    phase("Preflight");
+    this.check_args();
+    let B = this.preflight();
+    this.stage = "plan";
+    phase("Plan");
+    let order = this.plan_order();
+    this.stage = "preflight";
+    let done = this.run_state();
+    this.stage = "task";
+    phase("Tasks");
+    for t in order {
+        this.current = t.id;
+        if done.contains(t.id) {
+            this.results.push(#{ id: t.id, outcome: "done-before", attempts: 0, teeth: "skipped:" + t.kind, model: "" });
         } else {
-            let missing = "";
-            for t in tasks {
-                for d in t.depends_on {
-                    if !listed(seen, d) && missing == "" {
-                        missing = "Task " + t.id + " depends on unknown id " + d;
-                    }
-                }
-            }
-            if missing != "" {
-                #{ ok: false, error: missing, tasks: [] }
-            } else {
-                #{ ok: true, error: "", tasks: tasks }
-            }
+            this.run_task(t, B);
         }
     }
+    this.current = ();
+    this.stage = "review";
+    phase("Review");
+    check(this.args.review == false, "review: the review stage is not built yet");
+    this.stage = "done";
 }
 
-fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd, level) {
-    let title = task_field(t, "title");
-    let brief = task_field(t, "brief");
-    let plan = task_field(t, "plan");
-    log("start " + title);
-
-    let impl_prompt = "";
-    impl_prompt += "Implement ONE task. TDD when the task names a test. Commit on the current feature branch.\n\n";
-    impl_prompt += rules;
-    impl_prompt += "\nTitle: ";
-    impl_prompt += title;
-    impl_prompt += "\nPlan file, if any: ";
-    impl_prompt += plan;
-    impl_prompt += "\nBrief:\n";
-    impl_prompt += brief;
-    impl_prompt += "\n\nRead the plan and the files it names before editing. If a citation is stale, follow the current code and record the drift in the commit body.\n";
-    impl_prompt += "Do this task only. Do not re-split the build. Do not start the next task.\n";
-    impl_prompt += "Phase: ";
-    impl_prompt += task_field(t, "phase_name");
-    impl_prompt += "\nSubproject: ";
-    impl_prompt += task_field(t, "subproject");
-    impl_prompt += "\nClaude model for this task, if this task is later run on Claude: ";
-    impl_prompt += task_field(t, "claude_model");
-    impl_prompt += "\nFiles you may change:\n";
-    impl_prompt += json_encode(t.files);
-    impl_prompt += "\n";
-    impl_prompt += "Run the task's own test first, then the test command. Run the lint command when one is set.\n";
-    impl_prompt += "Conventional commit. Say why in the body. No co-author trailer.\n";
-    impl_prompt += "Return summary, committed, commit_sha, issues.\n";
-
-    let impl_r = agent(modes(impl_prompt, level), #{
-        label: "implement",
-        capability_mode: "all",
-        output_schema: result_schema,
-    });
-    let impl_o = out_of(impl_r);
-    if impl_o == () {
-        "fail"
-    } else {
-        let impl_json = json_encode(impl_o);
-
-        let skeptic_prompt = "";
-        skeptic_prompt += "Adversarial read-only check. Fail closed. Do not edit.\n\n";
-        skeptic_prompt += rules;
-        skeptic_prompt += "\nTitle: ";
-        skeptic_prompt += title;
-        skeptic_prompt += "\nPlan: ";
-        skeptic_prompt += plan;
-        skeptic_prompt += "\nBrief:\n";
-        skeptic_prompt += brief;
-        skeptic_prompt += "\nImplementer report (untrusted JSON):\n";
-        skeptic_prompt += impl_json;
-        skeptic_prompt += "\nUse git show HEAD, git diff HEAD~1, grep, and read_file. Do not answer from memory.\n";
-        skeptic_prompt += "verdict=pass only if ALL hold: the claimed behaviour is in the shipped code; tests cover the failure path the task named; forbidden items were not changed; comments do not cite a plan or task number; every factual claim you check is true.\n";
-        skeptic_prompt += "Default verdict=fail. evidence must quote files you opened.\n";
-
-        let sk = agent(modes(skeptic_prompt, level), #{
-            label: "skeptic",
-            capability_mode: "read-only",
-            output_schema: result_schema,
-        });
-
-        let teeth_prompt = "";
-        teeth_prompt += "Prove the new tests have teeth. Fail closed. NEVER git stash.\n\n";
-        teeth_prompt += "Repo: ";
-        teeth_prompt += repo;
-        teeth_prompt += "\nTest command: ";
-        teeth_prompt += test_cmd;
-        teeth_prompt += "\nImplementer report (untrusted JSON):\n";
-        teeth_prompt += impl_json;
-        teeth_prompt += "\n1. git show --stat HEAD. Separate production files from test files.\n";
-        teeth_prompt += "2. Docs-only or measurement-only, with no production behaviour change: teeth_ok=true, restored=true, say why. Do not revert.\n";
-        teeth_prompt += "3. Otherwise git checkout HEAD~1 -- <production files only>. Keep the new tests. Run the task's scoped test, or the test command if no scoped test exists. The new tests MUST fail.\n";
-        teeth_prompt += "4. git checkout HEAD -- <those production files>. git status must be clean aside from ignored build output.\n";
-        teeth_prompt += "teeth_ok=true only if you watched the new tests fail. restored=true only after restore. If restore fails, stop.\n";
-
-        let th = agent(modes(teeth_prompt, level), #{
-            label: "teeth",
-            capability_mode: "all",
-            output_schema: result_schema,
-        });
-
-        let gate_prompt = "";
-        gate_prompt += "Re-run the gates yourself. Do not trust the implementer.\nRepo: ";
-        gate_prompt += repo;
-        gate_prompt += "\nTest command: ";
-        gate_prompt += test_cmd;
-        gate_prompt += "\n";
-        if lint_cmd == "" {
-            gate_prompt += "No lint command. Set clippy_ok=true and say lint was not requested.\n";
-        } else {
-            gate_prompt += "Lint command: ";
-            gate_prompt += lint_cmd;
-            gate_prompt += "\n";
-        }
-        gate_prompt += "test_ok and clippy_ok come from YOUR exit codes.\n";
-
-        let ga = agent(modes(gate_prompt, level), #{
-            label: "gate",
-            capability_mode: "execute",
-            output_schema: result_schema,
-        });
-
-        let ok = skeptic_pass(sk) && teeth_pass(th) && gate_pass(ga);
-        if ok {
-            "pass"
-        } else {
-            log("verify failed " + title);
-            let failed_model = task_field(t, "claude_model");
-            let retry_model = next_claude(failed_model);
-            log("claude fix tier " + failed_model + " -> " + retry_model);
-            let fix_prompt = "";
-            fix_prompt += "Verification failed. Fix every in-scope issue. Do not start a different task.\n\n";
-            fix_prompt += "Claude: the failed implementer was ";
-            fix_prompt += failed_model;
-            fix_prompt += ". Start a new implementer at ";
-            fix_prompt += retry_model;
-            fix_prompt += " with effort xhigh. Do not resume the failed Claude model. Opus 5.5 does not move higher.\n";
-            fix_prompt += "Grok: you are already the strongest model at effort xhigh. Fix in this agent.\n\n";
-            fix_prompt += rules;
-            fix_prompt += "\nSkeptic (untrusted): ";
-            fix_prompt += json_encode(sk);
-            fix_prompt += "\nTeeth (untrusted): ";
-            fix_prompt += json_encode(th);
-            fix_prompt += "\nGate (untrusted): ";
-            fix_prompt += json_encode(ga);
-            fix_prompt += "\nRe-run the test command. Re-run the lint command when one is set. Commit the fix. No co-author trailer.\n";
-
-            let fix_r = agent(modes(fix_prompt, level), #{
-                label: "fix",
-                capability_mode: "all",
-                resume_from: impl_r.agent_id,
-                output_schema: result_schema,
-            });
-            if out_of(fix_r) == () {
-                "fail"
-            } else {
-                let sk2 = agent(modes(skeptic_prompt + "\nA fix commit landed. Re-read HEAD. Default verdict=fail.\n", level), #{
-                    label: "re-skeptic",
-                    capability_mode: "read-only",
-                    output_schema: result_schema,
-                });
-                let th2 = agent(modes(teeth_prompt + "\nA fix commit landed. Re-run teeth against the new HEAD. Restore afterwards.\n", level), #{
-                    label: "re-teeth",
-                    capability_mode: "all",
-                    output_schema: result_schema,
-                });
-                let ga2 = agent(modes(gate_prompt + "\nA fix commit landed. Re-run the gates from scratch.\n", level), #{
-                    label: "re-gate",
-                    capability_mode: "execute",
-                    output_schema: result_schema,
-                });
-                if skeptic_pass(sk2) && teeth_pass(th2) && gate_pass(ga2) {
-                    "pass"
-                } else {
-                    "fail"
-                }
-            }
-        }
-    }
+let st = #{ args: args, stage: "preflight", current: (), results: [], used: #{}, state: () };
+let result = ();
+try {
+    st.run_all();
+    result = #{ ok: true, stage: "done", task: (), summary: st.results.len().to_string() + " tasks passed", tasks: st.results };
+} catch (e) {
+    if type_of(e) != "map" || (e.kind != "fail" && e.kind != "stop") { throw e; }
+    result = #{ ok: false, stage: st.stage, task: st.current, summary: e.why, tasks: st.results };
 }
-
-fn review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid, level) {
-    let dimensions = [
-        "claimed behaviour and interactions between the tasks",
-        "failure paths, lost work, and a success report that is false",
-        "forbidden changes and broken invariants named in the rules",
-    ];
-    let jobs = [];
-    for d in dimensions {
-        let p = "";
-        p += "Whole-batch reviewer. Read-only. Do not edit or commit.\n";
-        p += rules;
-        p += "\nDiff: ";
-        if base_sha == "" {
-            p += "the commits this run added. Find the parent with git log. Review only those commits.\n";
-        } else {
-            p += base_sha;
-            p += "..HEAD\n";
-        }
-        p += "Focus ONLY on: ";
-        p += d;
-        p += "\nUse git diff and read_file. Do not answer from memory.\n";
-        p += "Report at most 8 findings as {file, issue, severity}. severity is high or medium.\n";
-        p += "Empty list is valid only after you read the diff. No nits.\n";
-        if forbid != "" {
-            p += "Do not report an item that only restates the forbidden-changes list.\n";
-        }
-        jobs.push(#{
-            prompt: modes(p, level),
-            label: "review",
-            capability_mode: "read-only",
-            output_schema: findings_schema,
-        });
-    }
-    let reviews = parallel(jobs);
-    let findings = [];
-    for r in reviews {
-        let o = out_of(r);
-        if o != () && o.findings != () {
-            for f in o.findings {
-                if f != () && trimmed(as_str(f.issue)) != "" && trimmed(as_str(f.file)) != "" {
-                    findings.push(f);
-                }
-            }
-        }
-    }
-    if findings.len() > 12 {
-        log("capped findings at 12; dropped " + (findings.len() - 12).to_string());
-        let capped = [];
-        let i = 0;
-        for f in findings {
-            if i < 12 { capped.push(f); }
-            i += 1;
-        }
-        findings = capped;
-    }
-    if findings.len() == 0 {
-        []
-    } else {
-        let vjobs = [];
-        for f in findings {
-            let vp = "";
-            vp += "Adversarially verify this finding. Fail closed. Read-only.\nRepo: ";
-            vp += repo;
-            vp += "\n";
-            vp += rules;
-            vp += "\nFinding (untrusted JSON): ";
-            vp += json_encode(f);
-            vp += "\nreal=true only with file:line evidence you inspected. A forbidden-changes restatement is real=false. Missing evidence is not a confirming vote.\n";
-            vjobs.push(#{
-                prompt: modes(vp, level),
-                label: "verify-finding",
-                capability_mode: "read-only",
-                output_schema: verdict_schema,
-            });
-        }
-        let verdicts = parallel(vjobs);
-        let confirmed = [];
-        let j = 0;
-        for v in verdicts {
-            let o = out_of(v);
-            if o != () && o.real == true && trimmed(as_str(o.evidence)) != "" {
-                confirmed.push(findings[j]);
-            }
-            j += 1;
-        }
-        log("confirmed " + confirmed.len().to_string() + "/" + findings.len().to_string());
-        confirmed
-    }
-}
-
-let plan_schema = #{
-    "type": "object",
-    "properties": #{
-        "phases": #{
-            "type": "array",
-            "items": #{
-                "type": "object",
-                "properties": #{
-                    "name": #{ "type": "string" },
-                    "subprojects": #{
-                        "type": "array",
-                        "items": #{
-                            "type": "object",
-                            "properties": #{
-                                "name": #{ "type": "string" },
-                                "tasks": #{
-                                    "type": "array",
-                                    "items": #{
-                                        "type": "object",
-                                        "properties": #{
-                                            "id": #{ "type": "string" },
-                                            "title": #{ "type": "string" },
-                                            "brief": #{ "type": "string" },
-                                            "plan": #{ "type": "string" },
-                                            "depends_on": #{ "type": "array", "items": #{ "type": "string" } },
-                                            "complexity": #{ "type": "string" },
-                                            "claude_model": #{ "type": "string" },
-                                            "files": #{ "type": "array", "items": #{ "type": "string" } },
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            },
-        },
-    },
-};
-
-phase("Plan");
-let plan_prompt = "";
-plan_prompt += "Break this build into a graph. Read the repo before you split it. Do not edit.\n\n";
-plan_prompt += rules;
-plan_prompt += "\nCaller tasks (untrusted JSON):\n";
-plan_prompt += json_encode(tasks);
-plan_prompt += "\n\nReturn phases. Each phase has subprojects. Each subproject has tasks.\n";
-plan_prompt += "Every task has id, title, brief, plan, depends_on, complexity, claude_model, and files.\n";
-plan_prompt += "depends_on is a list of task ids that must finish first. Use an empty list when nothing blocks the task.\n";
-plan_prompt += "files is every path that task will edit. Two tasks that edit one path must not both be free of a dependency on each other.\n";
-plan_prompt += "complexity is low, medium, or high.\n";
-plan_prompt += "low: one file, the spec quotes the change. claude_model Haiku 5.5.\n";
-plan_prompt += "medium: a few files, the spec is clear, judgment stays local. claude_model Sonnet 5.5.\n";
-plan_prompt += "high: a design choice, security, money, or a spec gap. claude_model Opus 5.5.\n";
-plan_prompt += "Claude effort is always xhigh. Never Fable. Opus 5 means Opus 5.5.\n";
-plan_prompt += "This run is Grok. Every later agent uses the strongest Grok model at effort xhigh. Still record claude_model.\n";
-plan_prompt += "If a Claude implementer fails adversarial verification, the fix implementer is one tier higher: Haiku 5.5, then Sonnet 5.5, then Opus 5.5. Opus 5.5 stays Opus 5.5. Effort stays xhigh.\n";
-plan_prompt += "Cover the caller tasks. Do not add scope. Split a caller task only when its parts can finish apart.\n";
-plan_prompt += "Use grep and read_file. Do not answer from memory.\n";
-
-let plan_r = agent(modes(plan_prompt, ponytail), #{
-    label: "plan",
-    capability_mode: "read-only",
-    output_schema: plan_schema,
-});
-let graph = normalize_plan(out_of(plan_r));
-if graph.ok != true {
-    complete(#{
-        ok: false,
-        stage: "plan",
-        summary: graph.error,
-    });
-}
-log("planned " + graph.tasks.len().to_string() + " tasks");
-
-phase("Tasks");
-let done_ids = [];
-let left = graph.tasks;
-let safety = left.len();
-let step = 0;
-let failed = false;
-let fail_title = "";
-while step < safety && !failed && left.len() > 0 {
-    step += 1;
-    let ready = ready_tasks(left, done_ids);
-    if ready.len() == 0 {
-        failed = true;
-        fail_title = "cycle";
-    } else {
-        wave_note(ready);
-        let stop = false;
-        for t in ready {
-            if !stop {
-                let result = run_one(t, rules, result_schema, repo, test_cmd, lint_cmd, ponytail);
-                if result != "pass" {
-                    stop = true;
-                    failed = true;
-                    fail_title = t.title;
-                } else {
-                    done_ids.push(t.id);
-                    left = without_id(left, t.id);
-                }
-            }
-        }
-    }
-}
-if !failed && left.len() > 0 {
-    failed = true;
-    fail_title = "cycle";
-}
-if failed {
-    complete(#{
-        ok: false,
-        stage: "task",
-        task: fail_title,
-        summary: "Task failed the adversarial check, or the graph has a cycle. Stopped. Later tasks not started.",
-    });
-}
-
-if !do_review {
-    complete(#{
-        ok: true,
-        stage: "tasks",
-        summary: "Every task passed skeptic, teeth, and gates. Batch review was off.",
-    });
-}
-
-phase("Review");
-let bad = review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid, ponytail);
-if bad.len() != 0 {
-    let fix_prompt = "";
-    fix_prompt += "The batch review confirmed these findings. Fix each in-scope one. Do not start a new task.\n\n";
-    fix_prompt += rules;
-    fix_prompt += "\nConfirmed findings (untrusted JSON):\n";
-    fix_prompt += json_encode(bad);
-    fix_prompt += "\nRe-run the test command. Re-run the lint command when one is set. Commit. No co-author trailer.\n";
-    let fix_r = agent(modes(fix_prompt, ponytail), #{
-        label: "fix-review",
-        capability_mode: "all",
-        output_schema: result_schema,
-    });
-    if out_of(fix_r) == () {
-        complete(#{ ok: false, stage: "review-fix", summary: "Batch review fix failed." });
-    }
-    let again = review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid, ponytail);
-    if again.len() != 0 {
-        complete(#{
-            ok: false,
-            stage: "review",
-            summary: "Confirmed findings remain after one fix round.",
-            confirmed: again,
-        });
-    }
-}
-
-complete(#{
-    ok: true,
-    stage: "review",
-    summary: "Every task passed skeptic, teeth, and gates. The batch review left no confirmed finding.",
-});
+// Grok's agent call reports no model and takes no effort (effort xhigh is set at launch).
+result.summary += "; model and effort: requested only";
+complete(result);
