@@ -349,7 +349,9 @@ async function attempt(t, B, state, pre, failure, r,
   const nameStatus = get(S2, 'S2', 'name_status', 'string')
   const changed = changedPaths(nameStatus)
   if (t.kind === null) {
-    t = { ...t, kind: changed.some(p => listed(p, t.files)) ? 'code' : 'test' }
+    const kind = changed.some(p => listed(p, t.files) && !isDocs(p)) ? 'code'
+      : changed.every(p => listed(p, t.files) && isDocs(p)) ? 'docs' : 'test'
+    t = { ...t, kind }
     r.teeth = `skipped:${t.kind}`
   }
 

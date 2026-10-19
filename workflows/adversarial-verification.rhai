@@ -543,8 +543,13 @@ fn attempt(t, B, pre, failure) {
     let name_status = field_of(S2, "S2", "name_status", "string");
     let changed = changed_paths(name_status);
     if t.kind == () {
-        t.kind = "test";
-        for p in changed { if listed(p, t.files) { t.kind = "code"; } }
+        let prod = false;
+        let docs = true;
+        for p in changed {
+            if listed(p, t.files) && !is_docs(p) { prod = true; }
+            if !listed(p, t.files) || !is_docs(p) { docs = false; }
+        }
+        t.kind = if prod { "code" } else if docs { "docs" } else { "test" };
         this.set_result("teeth", "skipped:" + t.kind);
     }
 

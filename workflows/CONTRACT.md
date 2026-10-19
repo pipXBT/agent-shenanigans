@@ -379,9 +379,10 @@ at stage `done`.
 - The fix runs as task `review-fix` through steps 1–6 with one attempt:
   `fix-review` replaces `implement`, and its prompt lists the confirmed
   findings with their evidence. It runs on `OTHER_MODEL` (Claude) or
-  `GROK_MODEL`, outside the tier ladder. Its kind is `code` when `changed` ∩
-  `files` is non-empty after step 2, else `test`, so teeth runs only when it
-  changed a production path and never touches `tests`.
+  `GROK_MODEL`, outside the tier ladder. Its kind, set after step 2, is
+  `code` when `changed` has a production path; else `docs` when every path in
+  `changed` is a docs path in `files`; else `test`. So teeth runs only when it
+  changed a production path, and never touches `tests`.
 - Every stop inside `review-fix` is at stage `review`. On any failure: F1–F3
   back to its pre-fix SHA, then stop with `task: "review-fix"`. On pass the run ends at stage `done`.
 
