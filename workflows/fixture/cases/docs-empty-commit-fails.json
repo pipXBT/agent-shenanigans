@@ -1,0 +1,364 @@
+{
+  "name": "docs-empty-commit-fails",
+  "args": {
+    "repo": "/fixture/repo",
+    "test_cmd": "make test",
+    "plan_path": "docs/plan.md",
+    "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "rules": {
+      "high_risk": [
+        "contracts/**"
+      ],
+      "test_globs": [
+        "tests/**"
+      ]
+    },
+    "forbid": [
+      ".github/**"
+    ],
+    "review": false,
+    "ponytail": "full",
+    "run_nonce": "fixture-docs-empty-commit-fails",
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Task 1",
+        "kind_source": "derived",
+        "complexity": null,
+        "files": [
+          "README.md"
+        ],
+        "tests": [],
+        "kind": "docs"
+      }
+    ]
+  },
+  "fixture": {
+    "outputs": {
+      "git": [
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":null}}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        }
+      ],
+      "plan": [
+        {
+          "phases": [
+            {
+              "name": "Phase 1",
+              "subprojects": [
+                {
+                  "name": "Core",
+                  "tasks": [
+                    {
+                      "id": "1",
+                      "depends_on": [],
+                      "complexity": "low",
+                      "brief": "Do task 1 (docs-empty-commit-fails)."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "implement": [
+        {
+          "summary": "Done.",
+          "issues": []
+        },
+        {
+          "summary": "Done.",
+          "issues": []
+        },
+        {
+          "summary": "Done.",
+          "issues": []
+        }
+      ]
+    },
+    "kill_after": null
+  },
+  "expect": {
+    "ok": false,
+    "stage": "task",
+    "task": "1",
+    "outcomes": {
+      "1": "fail"
+    },
+    "summary": "S2.head",
+    "implement": [
+      "claude-haiku-5-5",
+      "claude-sonnet-5-5",
+      "claude-opus-5-5"
+    ],
+    "tasks": {
+      "1": {
+        "attempts": 3,
+        "teeth": "skipped:docs"
+      }
+    },
+    "git": [
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "read_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "write_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "write_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "teeth_restore"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "teeth_restore"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "teeth_restore"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  }
+}

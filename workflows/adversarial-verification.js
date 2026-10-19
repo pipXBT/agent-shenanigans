@@ -61,12 +61,19 @@ const SCHEMAS = {
     id: STR, depends_on: list(STR), complexity: { type: 'string', enum: LEVELS }, brief: STR })) })) })) }),
   git: obj({ ok: BOOL, error: STR, head: STR, tree: STR, branch: STR, default_branch: STR, porcelain: STR,
     untracked: list(STR), name_status: STR, diff: STR, last_message: STR, base_is_ancestor: BOOL, state_json: STR }),
+  test: obj({ test_exit: { type: 'integer' }, lint_exit: { type: ['integer', 'null'] }, tail: STR }),
   implement: obj({ summary: STR, issues: list(STR) }),
+  skeptic: obj({ verdict: { type: 'string', enum: ['pass', 'fail'] }, evidence: STR }),
 }
 
-// A failed check. The top level turns it into a stop at the current stage.
+// A failed check. Inside a task attempt it fails the attempt; anywhere else it stops the run.
 class Fail extends Error {}
+// A failed check that stops the run even inside an attempt (CONTRACT.md §5, Failures).
+class Stop extends Fail {}
 const check = (ok, why) => { if (!ok) throw new Fail(why) }
+async function stopping(f) {
+  try { return await f() } catch (e) { throw e instanceof Fail ? new Stop(e.message) : e }
+}
 
 let stage = 'preflight'
 let current = null
@@ -76,7 +83,7 @@ const results = []
 async function call(label, prompt, opts = {}) {
   const o = { label, model: opts.model ?? OTHER_MODEL, effort: 'xhigh', schema: SCHEMAS[label] }
   if (READ_ONLY.includes(label)) o.agentType = 'agent-shenanigans:reader'
-  check(!o.model.toLowerCase().includes('fable'), `refused model ${o.model}`)
+  if (o.model.toLowerCase().includes('fable')) throw new Stop(`refused model ${o.model}`)
   const modes = MODES.replaceAll('`full`', `\`${args.ponytail}\``)
   const full = `${modes}\n\nRun nonce: ${args.run_nonce}\n\n${prompt}`
   if (!args.fixture) return agent(full, o)
@@ -103,6 +110,15 @@ const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v)
 const canon = v => Array.isArray(v) ? v.map(canon)
   : isObj(v) ? Object.fromEntries(Object.keys(v).sort().map(k => [k, canon(v[k])])) : v
 const same = (a, b) => JSON.stringify(canon(a)) === JSON.stringify(canon(b))
+
+const trackedClean = (r, name) =>
+  get(r, name, 'porcelain', 'string').split('\n').every(l => l === '' || l.startsWith('??'))
+// The paths of a --no-renames --name-status listing.
+const changedPaths = ns => ns.split('\n').filter(Boolean).map(l => l.split('\t').at(-1))
+// Equal to a listed path, or under a listed entry that ends in "/".
+const listed = (p, list) => list.some(e => e === p || (e.endsWith('/') && p.startsWith(e)))
+const isDocs = p => /\.(md|rst|txt|adoc)$/.test(p) || p.startsWith('docs/')
+const matches = (p, globs) => globs.some(g => glob(g).test(p))
 
 // Whole-path glob: ** spans whole segments, * and ? stay inside one segment.
 const glob = g => new RegExp('^' + g.split(/(\*\*\/|\/\*\*$|\*\*|\*|\?)/).map(p =>
@@ -261,7 +277,11 @@ async function runState() {
   return { state, done }
 }
 
-function implementPrompt(t) {
+function implementPrompt(t, pre, failure) {
+  const retry = failure ? `
+
+An earlier attempt at this task failed: ${failure}
+The branch is back at the pre-task commit ${pre}. Start again from there.` : ''
   return `Implement one task from a plan. Work in ${args.repo}, on the current branch.
 Task ${t.id}: ${t.title} (kind ${t.kind})
 Files: ${t.files.join(', ') || 'none'}
@@ -270,28 +290,171 @@ Never touch paths matching: ${args.forbid.join(', ') || 'none'}
 Test command: ${args.test_cmd}${args.lint_cmd ? `\nLint command: ${args.lint_cmd}` : ''}
 
 Brief:
-${t.brief}
+${t.brief}${retry}
 
 Commit your work and leave the tree clean.`
 }
 
-// Stub until the task loop lands: one implement call on the tier model, then fail.
-async function runTask(t) {
-  const model = CLAUDE_MODELS[t.complexity]
-  await call('implement', implementPrompt(t), { model })
-  results.push({ id: t.id, outcome: 'fail', attempts: 1, teeth: `skipped:${t.kind}`, model })
-  throw new Fail(`task ${t.id}: the task loop is not built yet`)
+const testPrompt = () => `Repo: ${args.repo} (cd there first)
+
+You are the test step of a scripted workflow. Do not judge or fix anything.
+1. Run: ${args.test_cmd}
+2. ${args.lint_cmd ? `Run: ${args.lint_cmd}` : 'There is no lint command; skip this step.'}
+Report test_exit (the exit code of step 1), lint_exit (the exit code of step 2, or null when it was skipped), and tail (the last 200 lines of their combined output).`
+
+const SKEPTIC_QUESTIONS = {
+  code: 'Does the diff do what the brief says, and nothing outside it?',
+  refactor: 'Is behaviour unchanged?',
+  docs: 'Does the diff change documentation only?',
+  test: 'Do the new tests assert real behaviour?',
+}
+
+function skepticPrompt(t, nameStatus, diff, changed) {
+  const testEdits = changed.filter(p => listed(p, t.tests) || matches(p, args.rules.test_globs))
+  const extra = t.kind === 'refactor' && testEdits.length
+    ? ` It changes test files (${testEdits.join(', ')}): confirm no assertion was removed or weakened.` : ''
+  return `You are the skeptic for one task of a plan. Read the repo at ${args.repo} as needed; change nothing.
+Task ${t.id}: ${t.title} (kind ${t.kind})
+Files: ${t.files.join(', ') || 'none'}
+Tests: ${t.tests.join(', ') || 'none'}
+Forbidden paths: ${args.forbid.join(', ') || 'none'}
+
+Brief:
+${t.brief}
+
+Changed paths (git diff --name-status):
+${nameStatus}
+
+Diff:
+${diff}
+
+Question: ${SKEPTIC_QUESTIONS[t.kind]}${extra}
+Return verdict "pass" only when the answer is clearly yes, else "fail", with the evidence.`
+}
+
+// Steps 2-6 of one attempt (CONTRACT.md §5). A Fail fails the attempt; a Stop ends the run.
+async function attempt(t, B, state, pre, failure, r) {
+  await call('implement', implementPrompt(t, pre, failure), { model: r.model })
+  const S2 = await git('snapshot', { base: pre })
+  const H = get(S2, 'S2', 'head', 'string')
+  check(H !== pre, 'S2.head: equals the pre-task commit, nothing was committed')
+  check(get(S2, 'S2', 'base_is_ancestor', 'boolean'), 'S2.base_is_ancestor: the pre-task commit is not an ancestor of HEAD')
+  check(get(S2, 'S2', 'porcelain', 'string') === '', 'S2.porcelain: the tree is not clean after implement')
+  const T = get(S2, 'S2', 'tree', 'string')
+  const nameStatus = get(S2, 'S2', 'name_status', 'string')
+  const changed = changedPaths(nameStatus)
+
+  check(S2.ok === true, `S2.ok: ${S2.error}`)
+  const sk = await call('skeptic', skepticPrompt(t, nameStatus, get(S2, 'S2', 'diff', 'string'), changed))
+  check(sk?.verdict === 'pass', `skeptic.verdict: ${sk?.verdict ?? 'missing'}: ${sk?.evidence ?? ''}`)
+
+  if (t.kind === 'code') {
+    const P = changed.filter(p => listed(p, t.files) && !listed(p, t.tests))
+    check(P.length > 0, 'S2.name_status: no production path in files changed')
+    r.teeth = 'ran'
+    const TR = await git('teeth_revert', { base: pre, paths: P })
+    const TT = await call('test', testPrompt())
+    const RS = await git('teeth_restore', {})
+    await stopping(async () => {
+      check(get(RS, 'RS', 'head', 'string') === H, 'RS.head: HEAD moved during teeth')
+      check(get(RS, 'RS', 'tree', 'string') === T, 'RS.tree: the tree changed during teeth')
+      check(trackedClean(RS, 'RS'), 'RS.porcelain: tracked changes remain after the teeth restore')
+    })
+    check(get(TR, 'TR', 'head', 'string') === H, 'TR.head: the teeth revert did not run on HEAD')
+    check(Number.isInteger(TT?.test_exit) && TT.test_exit !== 0,
+      `TT.test_exit: ${TT?.test_exit}, the tests do not fail without the change`)
+  } else if (t.kind === 'docs') {
+    const bad = changed.find(p => !isDocs(p) || listed(p, t.tests) || matches(p, args.rules.test_globs))
+    check(!bad, `S2.name_status: ${bad} is not a documentation path`)
+  }
+
+  const G1 = await call('test', testPrompt())
+  check(G1?.test_exit === 0, `G1.test_exit: ${G1?.test_exit}, the tests fail`)
+  if (args.lint_cmd) check(G1.lint_exit === 0, `G1.lint_exit: ${G1.lint_exit}, lint fails`)
+  const G2 = await git('snapshot', { base: pre })
+  check(get(G2, 'G2', 'head', 'string') === H, 'G2.head: HEAD moved after implement')
+  const branch = get(G2, 'G2', 'branch', 'string')
+  check(branch === B, `G2.branch: ${branch} is not ${B}`)
+  check(branch !== get(G2, 'G2', 'default_branch', 'string'), 'G2.default_branch: on the default branch')
+  check(trackedClean(G2, 'G2'), 'G2.porcelain: tracked changes are not committed')
+  for (const p of changedPaths(get(G2, 'G2', 'name_status', 'string'))) {
+    check(listed(p, t.files) || listed(p, t.tests), `G2.name_status: ${p} is outside files and tests`)
+    check(!matches(p, args.forbid), `G2.name_status: ${p} matches forbid`)
+  }
+
+  const S6 = await git('snapshot', { base: '' })
+  check(get(S6, 'S6', 'head', 'string') === H, 'S6.head: HEAD moved after the gate')
+  check(trackedClean(S6, 'S6'), 'S6.porcelain: tracked changes appeared after the gate')
+  const trailer = `Task-Id: ${args.plan_hash.slice(0, 12)}/${t.id}`
+  await stopping(async () => {
+    const A = await git('amend_trailer', { trailer })
+    check(A?.ok === true, `A.ok: ${A?.error}`)
+    const receipt = get(A, 'A', 'head', 'string')
+    check(receipt !== H, 'A.head: the amend made no new commit')
+    check(get(A, 'A', 'tree', 'string') === get(G2, 'G2', 'tree', 'string'), 'A.tree: the amend changed the tree')
+    check(get(A, 'A', 'base_is_ancestor', 'boolean'), 'A.base_is_ancestor: the amend changed the parent')
+    check(get(A, 'A', 'last_message', 'string').split('\n').includes(trailer), `A.last_message: no line ${trailer}`)
+    state.tasks[t.id].receipt = receipt
+    await writeState(state)
+    if (get(A, 'A', 'untracked', 'array').length) {
+      const MU = await git('move_untracked_aside', { since: pre })
+      check(get(MU, 'MU', 'untracked', 'array').length === 0, 'MU.untracked: files remain after moving them aside')
+      check(get(MU, 'MU', 'porcelain', 'string') === '', 'MU.porcelain: the tree is not clean')
+    }
+  })
+}
+
+// F1-F3: back to the pre-task commit with a clean tree. Any failed check here stops the run.
+async function restore(pre) {
+  const F1 = await git('teeth_restore', {})
+  check(trackedClean(F1, 'F1'), 'F1.porcelain: tracked changes remain after the restore')
+  const F2 = await git('reset_keep', { sha: pre })
+  check(get(F2, 'F2', 'head', 'string') === pre, `F2.head: the reset did not land on ${pre}`)
+  let last = ['F2', F2]
+  if (get(F2, 'F2', 'untracked', 'array').length) {
+    const F3 = await git('move_untracked_aside', { since: pre })
+    check(get(F3, 'F3', 'untracked', 'array').length === 0, 'F3.untracked: files remain after moving them aside')
+    last = ['F3', F3]
+  }
+  check(get(last[1], last[0], 'porcelain', 'string') === '', `${last[0]}.porcelain: the tree is not clean`)
+}
+
+// Step 1, then up to three attempts, each one tier up from the last (high stays high).
+async function runTask(t, B, state) {
+  const r = { id: t.id, outcome: 'fail', attempts: 0, teeth: `skipped:${t.kind}`, model: '' }
+  results.push(r)
+  const S1 = await git('snapshot', { base: '' })
+  check(get(S1, 'S1', 'porcelain', 'string') === '', 'S1.porcelain: the tree is not clean')
+  const pre = get(S1, 'S1', 'head', 'string')
+  state.tasks[t.id] = { pre, receipt: null }
+  await writeState(state)
+  let failure = null
+  for (let tier = LEVELS.indexOf(t.complexity); r.attempts < 3; tier = Math.min(tier + 1, 2)) {
+    r.attempts++
+    r.model = CLAUDE_MODELS[LEVELS[tier]]
+    r.teeth = `skipped:${t.kind}`
+    try {
+      await attempt(t, B, state, pre, failure, r)
+      r.outcome = 'pass'
+      return
+    } catch (e) {
+      if (!(e instanceof Fail) || e instanceof Stop) throw e
+      failure = `attempt ${r.attempts}: ${e.message}`
+    }
+    await restore(pre)
+  }
+  throw new Fail(`task ${t.id} failed 3 attempts; last: ${failure}`)
 }
 
 async function run() {
   phase('Preflight')
   checkArgs()
-  await preflight()
+  const B = await preflight()
   stage = 'plan'
   phase('Plan')
   const order = await planOrder()
   stage = 'preflight'
-  const { done } = await runState()
+  const { state, done } = await runState()
   stage = 'task'
   phase('Tasks')
   for (const t of order) {
@@ -300,7 +463,7 @@ async function run() {
       results.push({ id: t.id, outcome: 'done-before', attempts: 0, teeth: `skipped:${t.kind}`, model: '' })
       continue
     }
-    await runTask(t)
+    await runTask(t, B, state)
   }
   current = null
   stage = 'review'
