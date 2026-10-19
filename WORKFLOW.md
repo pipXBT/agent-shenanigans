@@ -41,7 +41,7 @@ update; `--accept` records the new SHAs as verified once both hosts load the sam
 | 1 | **Brainstorm** | `superpowers:brainstorming` | A design spec. |
 | 2 | **Debate** | `agent-shenanigans:debate` | Verdict on the spec from a 14-seat panel. |
 | 3 | **Plan** | `superpowers:writing-plans` | A task-by-task plan file. |
-| 4 | **Run** | `agent-shenanigans:run-plan` | The plan executed task by task, each task verified, then a review pass. |
+| 4 | **Run** | `agent-shenanigans:run-plan` | The plan executed task by task, each task gated; `--full` adds a skeptic, teeth, and a review pass. |
 | 5 | **Clean** | `/code-cleanup` | Nine tiered agents sweep the result. Same loop, `/code-cleanup` as the executor. |
 | 6 | **Map** | `/update-codemaps` | Fresh `codemaps/` for the next session. |
 | ✓ | **Gate** | `check-in` | Evidence-checked "is it actually done", anywhere a wrong "done" is costly. |
@@ -66,7 +66,8 @@ listed. It is never APPROVED, and it lets step 3 proceed.
 `run-plan` reads the plan file in code, shows each task's `kind` and `complexity`, states the
 agent count, and waits for go. Claude Code starts `workflows/adversarial-verification.js` through
 the Workflow tool; Grok Build runs `workflows/adversarial-verification.rhai`. Both implement
-[`workflows/CONTRACT.md`](./workflows/CONTRACT.md) and pass the same fixture cases.
+[`workflows/CONTRACT.md`](./workflows/CONTRACT.md) and pass the same fixture cases. `run-plan` is
+lite by default (implement, test gate, receipt); `--full` adds the skeptic, teeth, and the review pass.
 
 - **Phases.** A read-only plan agent groups tasks into phases and subprojects and gives each
   task `depends_on`, a complexity, and a brief. Tasks run one at a time in dependency order;
