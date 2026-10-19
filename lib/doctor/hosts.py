@@ -81,14 +81,34 @@ def _own(home: Path, host: str) -> tuple[UserEntry, ...]:
     return tuple(e for e in user_entries(home) if e.path.is_relative_to(home / f".{host}"))
 
 
+def _live_dir(markets: dict, pid: str) -> Path | None:
+    """A plugin from a directory marketplace is read live from that folder, not from its install-time cache copy."""
+    name, _, market = pid.partition("@")
+    src = markets.get(market, {}).get("source", {})
+    if src.get("source") != "directory" or not src.get("path"):
+        return None
+    root = Path(src["path"])
+    listed = _json(root / ".claude-plugin/marketplace.json").get("plugins", [])
+    rel = next((p.get("source") for p in listed if p.get("name") == name and isinstance(p.get("source"), str)), "./")
+    return (root / rel).resolve()
+
+
 def read_claude(home: Path) -> HostState:
     installed = _json(home / ".claude/plugins/installed_plugins.json").get("plugins", {})
     enabled = _json(home / ".claude/settings.json").get("enabledPlugins", {})
+    markets = _json(home / ".claude/plugins/known_marketplaces.json")
     plugins, skills = {}, []
     for pid, entries in installed.items():
         entry = next((e for e in entries if e.get("scope") == "user"), entries[0])
-        path, on = Path(entry["installPath"]), bool(enabled.get(pid))
-        plugins[pid] = PluginState("claude", pid, on, entry.get("gitCommitSha"), path, False)
+        path, on, sha = Path(entry["installPath"]), bool(enabled.get(pid)), entry.get("gitCommitSha")
+        live = _live_dir(markets, pid)
+        if live is not None:
+            path = live
+            try:
+                sha = _rev_parse(live)
+            except subprocess.CalledProcessError:
+                pass  # not a git checkout: keep the install-time SHA
+        plugins[pid] = PluginState("claude", pid, on, sha, path, False)
         if on:
             names = [p.name for p in sorted(path.glob("skills/*")) if p.is_dir()]
             names += [p.stem for p in sorted(path.glob("commands/*.md"))]

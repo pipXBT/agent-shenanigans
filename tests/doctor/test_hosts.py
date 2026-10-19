@@ -72,6 +72,15 @@ class ReadClaude(FakeHome):
         p = read_claude(self.home).plugins["caveman@caveman"]
         self.assertEqual((p.host, p.sha, p.path), ("claude", "c0ffee", self.home / "cache/caveman@caveman"))
 
+    def test_directory_marketplace_reads_live_head(self):
+        repo = self.home / "checkout"
+        head = git_repo(repo)
+        self.claude({"mine@local": "old-install-sha"}, {"mine@local": True})
+        write_json(self.home / ".claude/plugins/known_marketplaces.json",
+                   {"local": {"source": {"source": "directory", "path": str(repo)}}})
+        p = read_claude(self.home).plugins["mine@local"]
+        self.assertEqual((p.sha, p.path), (head, repo.resolve()))
+
     def test_claude_enabled_from_settings(self):
         self.claude({"on@m": "1", "off@m": "2", "unset@m": "3"}, {"on@m": True, "off@m": False})
         for pid in ("on@m", "off@m"):
