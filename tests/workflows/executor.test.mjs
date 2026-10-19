@@ -3,8 +3,8 @@
 // `git` lists the git actions in call order (each entry matches the listed params only;
 // a trailing "..." allows more calls after), `implement` lists the implement models,
 // `tasks` maps an id to result fields it must have, `summary` is a substring of the
-// result summary, and `prompts` lists {label, n, includes}: the n-th call of that label
-// has a prompt containing `includes`.
+// result summary, `calls` maps a label to how many times it was called, and `prompts` lists
+// {label, n, includes}: the n-th call of that label has a prompt containing `includes`.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -52,6 +52,8 @@ for (const file of readdirSync(CASES)) {
     }
     if (c.expect.implement)
       assert.deepEqual(calls.filter(k => k.label === 'implement').map(k => k.model), c.expect.implement)
+    for (const [label, n] of Object.entries(c.expect.calls ?? {}))
+      assert.equal(calls.filter(k => k.label === label).length, n, `${label} calls`)
     for (const { label, n, includes } of c.expect.prompts ?? [])
       assert.ok(calls.filter(k => k.label === label)[n]?.prompt.includes(includes), `${label} #${n}: ${includes}`)
   })
