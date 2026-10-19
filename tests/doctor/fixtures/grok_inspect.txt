@@ -1,0 +1,38 @@
+  Skills (18)
+  └ brandkit                               user [collides with /brandkit → /user:brandkit]
+  └ build-status                           user
+  └ recall                                 user
+  └ writing-plans                          user [collides with /writing-plans → /user:writing-plans]
+  └ algorand-vulnerability-scanner         user [claude]
+  └ code-cleanup                           user [claude] [collides with /code-cleanup → /user:code-cleanup]
+  └ init                                   user [claude] [collides with /init → /user:init]
+  └ build-with-ai                          bundled
+  └ imagine                                bundled [collides with /imagine → /bundled:imagine]
+  └ code-cleanup                           plugin: agent-shenanigans [collides with /code-cleanup → /agent-shenanigans:code-cleanup]
+  └ init                                   plugin: agent-shenanigans [collides with /init → /agent-shenanigans:init]
+  └ ultracave                              plugin: caveman [claude]
+  └ update-codemaps                        plugin: cc-codemaps [claude]
+  └ run                                    plugin: debate [claude]
+  └ ponytail                               plugin: ponytail
+  └ brainstorming                          plugin: superpowers
+  └ writing-plans                          plugin: superpowers [collides with /writing-plans → /superpowers:writing-plans]
+  └ workflow                               plugin: vercel [claude] [collides with /workflow → /vercel:workflow]
+
+  Agents (4)
+  └ general-purpose                builtin
+  └ security-verifier              user
+  └ caveman:cavecrew-builder       plugin: caveman
+  └ caveman:cavecrew-reviewer      plugin: caveman
+
+  Plugins (6)
+  └ explanatory-output-style (user, enabled)  hooks
+  └ caveman (user, enabled)                   6 skills, 1 agents
+  └ ponytail (user, enabled)                  6 skills
+  └ superpowers (user, enabled)               15 skills, hooks
+  └ cc-codemaps (user, enabled)               1 skills
+  └ debate (user, enabled)                    hooks
+
+  Marketplaces (None)
+
+  MCP Servers (1)
+  └ vercel (http)        plugin: vercel
