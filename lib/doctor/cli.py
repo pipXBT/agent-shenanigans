@@ -1,4 +1,4 @@
-"""`./doctor`: read the declared stack and both hosts, print the drift, exit 0 / 1 / 2. `--fix` and `--rollback` write."""
+"""`./doctor`: read the declared stack and both hosts, print the drift, exit 0 / 1 / 2. `--fix`, `--rollback`, `--seat-probe` and `--accept` write."""
 from __future__ import annotations
 
 import argparse
@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Mapping
 
 from doctor.fix import LockHeld, RunFolder, apply_fix, make_resolves, rollback
-from doctor.hosts import _rev_parse, read_claude, read_grok, run_grok_inspect
-from doctor.probes import read_probes
+from doctor.hosts import _rev_parse, loaded_shas, read_claude, read_grok, run_grok_inspect
+from doctor.probes import accept, read_probes, run_seat_probe
 from doctor.report import Finding, build_report, cannot, exit_code, render
 from doctor.stack import load_stack
 
@@ -34,14 +34,26 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--fix", action="store_true", help="patch settings, link, move retired and shadowing copies aside; print plugin commands")
     mode.add_argument("--rollback", metavar="RUN_ID", help="undo one --fix run from ~/.agent-shenanigans-backup/RUN_ID")
+    mode.add_argument("--shas", action="store_true", help="print the loaded plugin SHAs as JSON {plugin: sha}")
+    mode.add_argument("--seat-probe", action="store_true", help="run the debate seat runner's probe and write seats.json")
+    mode.add_argument("--accept", action="store_true", help="record the loaded SHAs in verified.json, if the hosts and probes agree")
     args = parser.parse_args(argv)
     env = os.environ if env is None else env
     home = Path(env.get("AGENT_SHENANIGANS_HOME") or env["HOME"])
     grok_bin = Path(env.get("GROK_BIN") or home / ".grok/bin/grok")
     backup = home / ".agent-shenanigans-backup"
+    probe_dir = home / ".agent-shenanigans-probe"
 
     if args.rollback:
         return _rollback(backup, args.rollback)
+    if args.seat_probe:
+        try:
+            result = run_seat_probe(REPO, probe_dir, env)
+        except Exception as e:
+            print(render([cannot("shared", "seat probe", e)]), end="")
+            return 2
+        print(f"doctor: seat probe {'passed' if result.passed else 'failed'}: {result.detail}")
+        return 0 if result.passed else 1
 
     errors: list[Finding] = []
 
@@ -59,12 +71,30 @@ def main(argv: list[str], env: Mapping[str, str] | None = None) -> int:
 
     claude = attempt("claude", "claude plugin state", lambda: read_claude(home))
     grok = attempt("grok", f"{grok_bin} inspect", lambda: read_grok(home, run_grok_inspect(grok_bin, home)))
-    probes = attempt("shared", "probe results", lambda: read_probes(home / ".agent-shenanigans-probe"), {})
+    if args.shas:
+        if errors:
+            print(render(errors), end="")
+            return 2
+        print(json.dumps(loaded_shas(stack, claude, grok), indent=2, sort_keys=True))
+        return 0
+
+    probes = attempt("shared", "probe results", lambda: read_probes(probe_dir), {})
     verified_file = REPO / "verified.json"
-    verified = attempt(
-        "shared", "verified.json", lambda: json.loads(verified_file.read_text()) if verified_file.exists() else {}, {}
+    verified = attempt(  # --accept overwrites verified.json, so a bad one must not stop it
+        "shared", "verified.json",
+        lambda: json.loads(verified_file.read_text()) if verified_file.exists() and not args.accept else {}, {},
     )
     head = attempt("shared", "git rev-parse HEAD", lambda: _rev_parse(REPO))
+
+    if args.accept:
+        if errors:
+            print(render(errors), end="")
+            return 2
+        refusals = accept(REPO, stack, claude, grok, probes, head)
+        for why in refusals:
+            print(f"refused: {why}")
+        print(f"doctor: {'refused to accept' if refusals else 'accepted; loaded SHAs written to verified.json'}")
+        return 1 if refusals else 0
 
     findings = errors + build_report(stack, claude, grok, probes, verified, head, home, REPO)
     if not args.fix:

@@ -8,11 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from doctor.hosts import HostState, PluginState
-from doctor.probes import ProbeResult, is_stale, last_sha_change
-from doctor.stack import PluginDecl, SettingDecl, Stack
+from doctor.hosts import HostState, loaded, loaded_shas
+from doctor.probes import ProbeResult, is_stale
+from doctor.stack import SELF, SettingDecl, Stack
 
-SELF = "agent-shenanigans"
 HOSTS = ("claude", "grok", "shared")
 LEVELS = ("error", "drift", "info")
 
@@ -46,12 +45,6 @@ def host_of(path: Path, home: Path) -> str:
     return next((h for h in ("claude", "grok") if path.is_relative_to(home / f".{h}")), "shared")
 
 
-def _declared(state: HostState | None, key: str | None, want: str | None) -> PluginState | None:
-    """The plugin on a host when stack.toml wants it enabled there and it is."""
-    have = state.plugins.get(key) if state and key and want == "enabled" else None
-    return have if have and have.enabled else None
-
-
 def _plugin_states(stack: Stack, claude: HostState | None, grok: HostState | None, probes) -> list[Finding]:
     out = []
     for p in stack.plugins:
@@ -78,29 +71,14 @@ def _plugin_states(stack: Stack, claude: HostState | None, grok: HostState | Non
     return out
 
 
-def _grok_sha(p: PluginDecl, claude_copy: PluginState | None, grok_copy: PluginState, grok: HostState) -> str | None:
-    """Grok loads some plugins from Claude's copy (skill rows tagged [claude]); for those, Claude's SHA is the one loaded."""
-    via_claude = grok_copy.via_claude or any(
-        s.via_claude and s.source == f"plugin: {p.grok_name}" for s in grok.skills
-    )
-    return claude_copy.sha if via_claude and claude_copy else grok_copy.sha
-
-
 def _shas(stack: Stack, claude: HostState | None, grok: HostState | None, verified, checkout_head, auto) -> list[Finding]:
     out = []
-    for p in stack.plugins:
-        c = _declared(claude, p.claude_id, p.claude_state)
-        g = _declared(grok, p.grok_name, p.grok_state)
-        shas = {}
-        if c:
-            shas["claude"] = (p.claude_id, c.sha)
-        if g:
-            shas["grok"] = (p.grok_name, _grok_sha(p, c, g, grok))
+    for p, shas in loaded(stack, claude, grok):
         for host, (key, sha) in shas.items():
             if sha is None:
                 out.append(cannot(host, key, ValueError("no SHA could be read")))
                 continue
-            if p.name in verified and verified[p.name] != sha:
+            if p.name in verified and verified[p.name] != sha.split("+")[0]:  # verified.json holds loaded_shas()
                 out.append(drift(host, "updated-since-verified", key, f"loaded {sha[:12]}, verified {verified[p.name][:12]}"))
             if p.name == SELF and checkout_head and sha.split("+")[0] != checkout_head:
                 out.append(drift(host, "checkout-drift", key, f"installed {sha[:12]}, checkout HEAD {checkout_head[:12]}"))
@@ -197,21 +175,17 @@ def _settings(stack: Stack, home: Path) -> list[Finding]:
     return out
 
 
-def _probes(stack: Stack, claude: HostState | None, grok: HostState | None, probes, home: Path) -> list[Finding]:
+def _probes(stack: Stack, claude: HostState | None, grok: HostState | None, probes) -> list[Finding]:
     out = []
-    try:
-        changed = last_sha_change(home, stack, grok) if claude else 0.0
-    except (OSError, ValueError) as e:
-        changed = 0.0
-        out.append(cannot("claude", "installed_plugins.json lastUpdated", e))
+    current = loaded_shas(stack, claude, grok) if claude and grok else None  # an unreadable host: staleness cannot be judged
     for name, host in (("claude", "claude"), ("grok", "grok"), ("seats", "shared")):
         p = probes.get(name)
         if p is None:
             out.append(drift(host, "probe-missing", name, f"no ~/.agent-shenanigans-probe/{name}.json"))
         elif not p.passed:
             out.append(drift(host, "probe-failing", name, p.detail or "probe did not pass"))
-        elif name != "seats" and is_stale(p, changed):
-            out.append(drift(host, "probe-stale", name, "a plugin changed after this probe ran"))
+        elif name != "seats" and current is not None and is_stale(p, current):
+            out.append(drift(host, "probe-stale", name, "the loaded plugin SHAs are not the ones this probe recorded"))
     if probes.get("grok") and probes["grok"].route == "daemon":
         out.append(drift("grok", "grok-daemon-route", "grok", "Grok is on the daemon route, which does not run .rhai workflows"))
     return out
@@ -248,7 +222,7 @@ def build_report(
     out += shadowed
     out += _paths(stack, claude, grok, probes, shadowed, home, repo_root)
     out += _settings(stack, home)
-    out += _probes(stack, claude, grok, probes, home)
+    out += _probes(stack, claude, grok, probes)
     if os.path.lexists(js := home / ".grok/workflows/adversarial-verification.js"):
         out.append(drift("grok", "generated-js", str(js), "generated file; Grok should run the linked .rhai workflow"))
     return out

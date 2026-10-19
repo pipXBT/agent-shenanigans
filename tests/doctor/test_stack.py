@@ -22,6 +22,22 @@ class LoadRepoStack(unittest.TestCase):
         dup = next(p for p in s.plugins if p.name == "superpowers-duplicate")
         self.assertEqual((dup.grok_name, dup.grok_state, dup.claude_state), (None, None, "absent"))
 
+    def test_every_enabled_plugin_declares_its_install_commands(self):
+        s = load_stack(REPO / "stack.toml", REPO, {"HOME": "/h"})
+        for p in s.plugins:
+            with self.subTest(p.name):
+                self.assertEqual(bool(p.claude_install), p.claude_state == "enabled")
+                self.assertEqual(bool(p.grok_install), p.grok_state == "enabled")
+        mine = next(p for p in s.plugins if p.name == "agent-shenanigans")
+        self.assertIn("{repo}", mine.claude_install)
+        self.assertEqual(mine.grok_install, "~/.grok/bin/grok plugin install {repo}")
+        self.assertIn("plugin marketplace remove agent-shenanigans", mine.claude_install)
+
+    def test_install_commands_are_optional(self):
+        s = load_stack(REPO / "stack.toml", REPO, {"HOME": "/h"})
+        dup = next(p for p in s.plugins if p.name == "superpowers-duplicate")
+        self.assertEqual((dup.claude_install, dup.grok_install), (None, None))
+
     def test_links_target_inside_repo(self):
         s = load_stack(REPO / "stack.toml", REPO, {"HOME": "/h"})
         self.assertIn(

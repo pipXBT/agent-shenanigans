@@ -3,6 +3,9 @@
 # State is "enabled" or "absent"; omit a host's keys when the plugin has no
 # presence there. `pending_until` names a probe stamp that must exist before
 # doctor treats the declared state as binding.
+# `claude_install` / `grok_install` are the exact shell commands `./doctor --fix`
+# prints, verbatim, when the plugin is missing on that host. Only `{repo}` is
+# substituted, with the path of the checkout doctor runs from. doctor never runs them.
 
 [[plugin]]
 name = "caveman"
@@ -11,6 +14,8 @@ claude_id = "caveman@caveman"
 grok_name = "caveman"
 claude_state = "enabled"
 grok_state = "enabled"
+claude_install = "claude plugin install caveman@caveman"
+grok_install = "~/.grok/bin/grok plugin install JuliusBrussee/caveman"
 
 [[plugin]]
 name = "ponytail"
@@ -19,6 +24,8 @@ claude_id = "ponytail@ponytail"
 grok_name = "ponytail"
 claude_state = "enabled"
 grok_state = "enabled"
+claude_install = "claude plugin install ponytail@ponytail"
+grok_install = "~/.grok/bin/grok plugin install DietrichGebert/ponytail"
 
 [[plugin]]
 name = "superpowers"
@@ -27,6 +34,8 @@ claude_id = "superpowers@claude-plugins-official"
 grok_name = "superpowers"
 claude_state = "enabled"
 grok_state = "enabled"
+claude_install = "claude plugin install superpowers@claude-plugins-official"
+grok_install = "~/.grok/bin/grok plugin install obra/superpowers"
 
 [[plugin]]
 name = "superpowers-duplicate"
@@ -41,6 +50,8 @@ claude_id = "cc-codemaps@cc-codemaps"
 grok_name = "cc-codemaps"
 claude_state = "enabled"
 grok_state = "enabled"
+claude_install = "claude plugin install cc-codemaps@cc-codemaps"
+grok_install = "~/.grok/bin/grok plugin install STRML/cc-codemaps"
 
 [[plugin]]
 name = "agent-shenanigans"
@@ -49,6 +60,8 @@ claude_id = "agent-shenanigans@agent-shenanigans"
 grok_name = "agent-shenanigans"
 claude_state = "enabled"
 grok_state = "enabled"
+claude_install = "claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {repo} && claude plugin install agent-shenanigans@agent-shenanigans"
+grok_install = "~/.grok/bin/grok plugin install {repo}"
 
 [[plugin]]
 name = "explanatory-output-style"

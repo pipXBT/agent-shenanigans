@@ -32,16 +32,18 @@ class ReportCase(unittest.TestCase):
         self.stack = load_stack(REPO / "stack.toml", REPO, {"HOME": str(self.home)})
         self.head, self.verified, self.repo = HEAD, {}, REPO
         self.claude_skills, self.grok_skills, self.claude_users, self.grok_users = [], [], [], []
-        self.claude_plugins, self.grok_plugins = {}, {}
+        self.claude_plugins, self.grok_plugins, self.loaded = {}, {}, {}
         for p in self.stack.plugins:
             sha = HEAD if p.name == "agent-shenanigans" else f"sha-{p.name}"
+            if "enabled" in (p.claude_state, p.grok_state):
+                self.loaded[p.name] = sha
             if p.claude_state == "enabled":
                 self.claude_plugins[p.claude_id] = PluginState("claude", p.claude_id, True, sha, None, False)
             if p.grok_state == "enabled":
                 self.grok_plugins[p.grok_name] = PluginState("grok", p.grok_name, True, sha, None, False)
         now = time.time()
         self.probes = {
-            name: ProbeResult(name, True, now, "shell" if name == "grok" else None, "")
+            name: ProbeResult(name, True, now, "shell" if name == "grok" else None, "", dict(self.loaded))
             for name in ("claude", "grok", "seats")
         }
         for link in self.stack.links:
@@ -106,7 +108,7 @@ class Drift(ReportCase):
             self.stack.links[0].path.symlink_to(self.home)
 
         def grok_daemon_route():
-            self.probes["grok"] = ProbeResult("grok", True, time.time(), "daemon", "")
+            self.probes["grok"] = ProbeResult("grok", True, time.time(), "daemon", "", dict(self.loaded))
 
         def generated_js():
             write(self.home / ".grok/workflows/adversarial-verification.js", "x")
@@ -118,10 +120,7 @@ class Drift(ReportCase):
             self.probes["seats"] = ProbeResult("seats", False, time.time(), None, "seat wrote a file")
 
         def probe_stale():
-            write(
-                self.home / ".claude/plugins/installed_plugins.json",
-                json.dumps({"plugins": {"ponytail@ponytail": [{"lastUpdated": "2999-01-01T00:00:00.000Z"}]}}),
-            )
+            self.probes["claude"] = ProbeResult("claude", True, time.time(), None, "", {**self.loaded, "ponytail": "older"})
 
         cases = {
             "missing": missing, "wrong-state": wrong_state, "host-sha-mismatch": host_sha_mismatch,
@@ -151,6 +150,28 @@ class Drift(ReportCase):
         self.grok_plugins["ponytail"] = PluginState("grok", "ponytail", True, "sha-ponytail+0123456789ab", None, False)
         self.assertEqual(self.report(), [])
 
+    def test_probe_is_stale_when_a_loaded_sha_changed_since_it_ran(self):
+        self.claude_plugins["ponytail@ponytail"] = PluginState("claude", "ponytail@ponytail", True, "newer", None, False)
+        self.grok_plugins["ponytail"] = PluginState("grok", "ponytail", True, "newer", None, False)
+        self.assertEqual(self.kinds(), [("claude", "probe-stale", "drift"), ("grok", "probe-stale", "drift")])
+        self.probes["claude"] = ProbeResult("claude", True, 0, None, "", {**self.loaded, "ponytail": "newer"})
+        self.probes["grok"] = ProbeResult("grok", True, 0, "shell", "", {**self.loaded, "ponytail": "newer"})
+        self.assertEqual(self.report(), [])  # age does not matter, only the SHAs
+
+    def test_probe_without_recorded_shas_is_stale_but_the_seat_probe_never_is(self):
+        self.probes["claude"] = ProbeResult("claude", True, time.time(), None, "")
+        self.probes["seats"] = ProbeResult("seats", True, time.time(), None, "")
+        self.assertEqual(self.kinds(), [("claude", "probe-stale", "drift")])
+
+    def test_probe_naming_a_plugin_that_is_no_longer_loaded_is_stale(self):
+        self.probes["grok"] = ProbeResult("grok", True, time.time(), "shell", "", {**self.loaded, "gone": "abc"})
+        self.assertEqual(self.kinds(), [("grok", "probe-stale", "drift")])
+
+    def test_verified_sha_ignores_a_grok_local_install_suffix(self):
+        self.grok_plugins["ponytail"] = PluginState("grok", "ponytail", True, "sha-ponytail+0123456789ab", None, False)
+        self.verified = {"ponytail": "sha-ponytail"}
+        self.assertEqual(self.report(), [])
+
     def test_generated_js_is_drift(self):
         write(self.home / ".grok/workflows/adversarial-verification.js", "x")
         self.assertEqual(self.kinds(), [("grok", "generated-js", "drift")])
@@ -175,7 +196,7 @@ class Drift(ReportCase):
         (self.home / ".grok/skills/model-policy").mkdir(parents=True)
         self.probes["grok"] = ProbeResult("grok", False, time.time(), "shell", "")
         self.assertEqual(self.kinds(), [("grok", "pending-retirement", "info"), ("grok", "probe-failing", "drift")])
-        self.probes["grok"] = ProbeResult("grok", True, time.time(), "shell", "")
+        self.probes["grok"] = ProbeResult("grok", True, time.time(), "shell", "", dict(self.loaded))
         self.assertEqual(self.kinds(), [("grok", "retired-present", "drift")])
 
     def test_gated_path_waits_for_marker_in_repo_skill(self):

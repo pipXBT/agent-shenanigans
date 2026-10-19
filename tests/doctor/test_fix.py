@@ -41,8 +41,8 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def plugin(name, claude_id=None, grok_name=None, claude_state=None, grok_state=None):
-    return PluginDecl(name, f"owner/{name}", claude_id, grok_name, claude_state, grok_state, None)
+def plugin(name, claude_id=None, grok_name=None, claude_state=None, grok_state=None, claude_install=None, grok_install=None):
+    return PluginDecl(name, f"owner/{name}", claude_id, grok_name, claude_state, grok_state, None, claude_install, grok_install)
 
 
 def tree(root: Path) -> dict[Path, tuple]:
@@ -77,9 +77,15 @@ class FixCase(unittest.TestCase):
         self.rhai = h / ".grok/workflows/adversarial-verification.rhai"
         self.stack = Stack(
             plugins=(
-                plugin("agent-shenanigans", "agent-shenanigans@agent-shenanigans", "agent-shenanigans", "enabled", "enabled"),
-                plugin("ponytail", "ponytail@ponytail", "ponytail", "enabled", "enabled"),
-                plugin("caveman", "caveman@caveman", "caveman", "enabled", "enabled"),
+                plugin(
+                    "agent-shenanigans", "agent-shenanigans@agent-shenanigans", "agent-shenanigans", "enabled", "enabled",
+                    "claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {repo} && claude plugin install agent-shenanigans@agent-shenanigans",
+                    "~/.grok/bin/grok plugin install {repo}",
+                ),
+                plugin("ponytail", "ponytail@ponytail", "ponytail", "enabled", "enabled",
+                       "claude plugin install ponytail@ponytail", "~/.grok/bin/grok plugin install DietrichGebert/ponytail"),
+                plugin("caveman", "caveman@caveman", "caveman", "enabled", "enabled",
+                       "claude plugin install caveman@caveman", "~/.grok/bin/grok plugin install JuliusBrussee/caveman"),
                 plugin("cc-codemaps", "cc-codemaps@cc-codemaps", "cc-codemaps", "enabled", "enabled"),
                 plugin("explanatory", "explanatory-output-style@claude-code-plugins", "explanatory-output-style", "absent", "absent"),
                 plugin("native-old", None, "native-old", None, "absent"),
@@ -277,15 +283,26 @@ class Fix(FixCase):
         self.assertEqual(cfg["features"], {"foo": True, "subagent_model_inheritance": False})
         self.assertNotIn("paths", cfg)
 
-    def test_features_table_is_never_created(self):
+    def test_features_table_is_created_when_probe_reports_model_rejected(self):
         self.probe("grok", passed=True, model_param_rejected=True)
         _, out = self.fix()
-        self.assertNotIn("features", tomllib.loads(self.cfg.read_text()))
-        self.assertIn("features", out)
+        cfg = tomllib.loads(self.cfg.read_text())
+        self.assertEqual(cfg["features"], {"subagent_model_inheritance": False})
+        self.assertNotIn("paths", cfg)
+        self.assertNotIn("features", out)
+        self.assertEqual(rollback(self.backup, "r1"), [])  # the created table goes with the rollback
+        self.assertEqual(self.cfg.read_text(), GROK_CFG)
+
+    def test_other_missing_tables_are_still_not_created(self):
+        stack = dataclasses.replace(self.stack, settings=(SettingDecl(self.cfg, "toml", "telemetry", "enabled", False),))
+        with contextlib.redirect_stdout(io.StringIO()) as out, RunFolder(self.backup, "r1") as run:
+            apply_fix(stack, [], self.home, self.repo, run, self.resolves)
+        self.assertNotIn("telemetry", tomllib.loads(self.cfg.read_text()))
+        self.assertIn("no [telemetry] table", out.getvalue())
 
     def test_plugin_commands_printed_in_order(self):
         grok = self.home / ".grok/bin/grok"
-        commands, _ = self.fix([
+        commands, out = self.fix([
             Finding("grok", "wrong-state", "caveman", "installed but disabled", "drift"),
             Finding("claude", "missing", "agent-shenanigans@agent-shenanigans", "not installed", "drift"),
             Finding("grok", "missing", "ponytail", "not installed", "drift"),
@@ -300,14 +317,36 @@ class Fix(FixCase):
             "claude plugin uninstall explanatory-output-style@claude-code-plugins",
             f"{grok} plugin uninstall native-old",
             f"{grok} plugin uninstall agent-shenanigans",
-            f"claude plugin install agent-shenanigans --marketplace {self.repo}",
-            f"{grok} plugin install owner/ponytail",
-            f"{grok} plugin install {self.repo}",
+            f"claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {self.repo} && "
+            "claude plugin install agent-shenanigans@agent-shenanigans",
+            "~/.grok/bin/grok plugin install DietrichGebert/ponytail",
+            f"~/.grok/bin/grok plugin install {self.repo}",
             "claude plugin install caveman@caveman",
             f"{grok} plugin enable caveman",
             "claude plugin enable cc-codemaps@cc-codemaps",
             "re-run ./doctor --fix",
         ])
+        self.assertNotIn("_install", out)
+
+    def test_install_command_is_the_declared_text_not_derived_from_source(self):
+        commands, _ = self.fix([Finding("claude", "missing", "ponytail@ponytail", "not installed", "drift")])
+        self.assertEqual(commands, ["claude plugin install ponytail@ponytail", "re-run ./doctor --fix"])
+        self.assertNotIn("owner/ponytail", " ".join(commands))
+
+    def test_repo_path_with_a_space_is_quoted(self):
+        spaced = self.home / "my repo"
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), RunFolder(self.backup, "r1") as run:
+            commands = apply_fix(
+                self.stack, [Finding("grok", "missing", "agent-shenanigans", "not installed", "drift")],
+                self.home, spaced, run, self.resolves,
+            )
+        self.assertEqual(commands[0], f"~/.grok/bin/grok plugin install '{spaced}'")
+
+    def test_missing_plugin_with_no_declared_install_is_reported_not_guessed(self):
+        commands, out = self.fix([Finding("grok", "missing", "cc-codemaps", "not installed", "drift")])
+        self.assertEqual(commands, [])
+        self.assertIn("cc-codemaps: no grok_install command in stack.toml", out)
 
     def test_no_commands_when_plugins_match(self):
         commands, _ = self.fix([Finding("grok", "unmanaged", "foo", "x", "info")])

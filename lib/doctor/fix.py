@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import os
+import shlex
 import shutil
 import tempfile
 import tomllib
@@ -15,8 +16,8 @@ from typing import Callable
 from doctor.hosts import parse_grok_inspect, read_claude, run_grok_inspect, user_entries
 from doctor.patch import PatchRefused, grok_config_check, patch_json_key, patch_toml_key, real_target
 from doctor.probes import read_probes
-from doctor.report import SELF, Finding, _gate_open, _live_setting, plugin_of
-from doctor.stack import PluginDecl, SettingDecl, Stack
+from doctor.report import Finding, _gate_open, _live_setting, plugin_of
+from doctor.stack import SELF, PluginDecl, SettingDecl, Stack
 
 class LockHeld(Exception):
     pass
@@ -123,7 +124,7 @@ def _settings(stack: Stack, home: Path, repo_root: Path, run: RunFolder) -> None
             if d.format == "toml":
                 check = _grok_check(d.file, [e for e in todo[i + 1:] if e.file == d.file]) if d.file == cfg else None
                 stored = run.preimage(target) if existed else None
-                changed = patch_toml_key(d.file, d.table, d.key, d.value, create_table=d.table == "paths", check=check)
+                changed = patch_toml_key(d.file, d.table, d.key, d.value, create_table=d.table in ("paths", "features"), check=check)
             else:
                 stored = run.preimage(target) if existed else None
                 changed = patch_json_key(d.file, d.key, d.value)
@@ -216,10 +217,12 @@ def _plugin_commands(stack: Stack, findings: list[Finding], home: Path, repo_roo
             decls["grok", p.grok_name] = p
     uninstall, install, enable = [], [], []
 
-    def install_cmd(host: str, p: PluginDecl) -> str:
-        if host == "claude":
-            return f"claude plugin install {p.name} --marketplace {repo_root}" if p.name == SELF else f"claude plugin install {p.claude_id}"
-        return f"{grok} plugin install {repo_root if p.name == SELF else p.source}"
+    def add_install(host: str, p: PluginDecl) -> None:
+        cmd = p.claude_install if host == "claude" else p.grok_install
+        if cmd is None:
+            _skip(p.name, f"no {host}_install command in stack.toml")
+        else:
+            install.append(cmd.replace("{repo}", shlex.quote(str(repo_root))))
 
     for f in findings:
         p = decls.get((f.host, f.name))
@@ -227,7 +230,7 @@ def _plugin_commands(stack: Stack, findings: list[Finding], home: Path, repo_roo
             continue
         want = p.claude_state if f.host == "claude" else p.grok_state
         if f.kind == "missing":
-            install.append(install_cmd(f.host, p))
+            add_install(f.host, p)
         elif f.kind == "wrong-state" and want == "enabled":
             enable.append(f"claude plugin enable {f.name}" if f.host == "claude" else f"{grok} plugin enable {f.name}")
         elif f.kind == "wrong-state" and want == "absent":
@@ -237,7 +240,7 @@ def _plugin_commands(stack: Stack, findings: list[Finding], home: Path, repo_roo
                 uninstall.append(f"{grok} plugin uninstall {f.name}")
         elif f.kind == "checkout-drift" and p.name == SELF:  # reinstall from this checkout
             uninstall.append(f"claude plugin uninstall {f.name}" if f.host == "claude" else f"{grok} plugin uninstall {f.name}")
-            install.append(install_cmd(f.host, p))
+            add_install(f.host, p)
     commands = list(dict.fromkeys(uninstall + install + enable))
     return commands + ["re-run ./doctor --fix"] if commands else []
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Mapping
 
+SELF = "agent-shenanigans"
 STATES = ("enabled", "absent")
 FORMATS = ("json", "toml")
 
@@ -23,6 +24,8 @@ class PluginDecl:
     claude_state: Literal["enabled", "absent"] | None
     grok_state: Literal["enabled", "absent"] | None
     pending_until: str | None
+    claude_install: str | None = None  # exact shell commands, printed verbatim by --fix ({repo} = this checkout)
+    grok_install: str | None = None
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,8 @@ def load_stack(path: Path, repo_root: Path, env: Mapping[str, str]) -> Stack:
             claude_state=_choice(p, "claude_state", STATES, label),
             grok_state=_choice(p, "grok_state", STATES, label),
             pending_until=p.get("pending_until"),
+            claude_install=p.get("claude_install"),
+            grok_install=p.get("grok_install"),
         ))
 
     root = repo_root.resolve()

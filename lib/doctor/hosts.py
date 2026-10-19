@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from doctor.stack import PluginDecl, Stack
+
 HEADER = re.compile(r" {0,2}([A-Z][A-Za-z ]*?)(?: \(.*\))?")
 SKILL_ROW = re.compile(r"  └ (\S+) +(user|bundled|plugin: \S+)( \[claude\])?(?: \[collides with /\S+ → (\S+)\])?")
 PLUGIN_ROW = re.compile(r"  └ (\S+) \(\w+, (enabled|disabled)\)(?: .*)?")
@@ -149,3 +151,39 @@ def read_grok(home: Path, inspect_text: str) -> HostState:
 
 def run_grok_inspect(grok_bin: Path, cwd: Path) -> str:
     return subprocess.run([str(grok_bin), "inspect"], cwd=cwd, capture_output=True, text=True, check=True).stdout
+
+
+def _declared(state: HostState | None, key: str | None, want: str | None) -> PluginState | None:
+    """The plugin on a host when stack.toml wants it enabled there and it is."""
+    have = state.plugins.get(key) if state and key and want == "enabled" else None
+    return have if have and have.enabled else None
+
+
+def _grok_sha(p: PluginDecl, claude_copy: PluginState | None, grok_copy: PluginState, grok: HostState) -> str | None:
+    """Grok loads some plugins from Claude's copy (skill rows tagged [claude]); for those, Claude's SHA is the one loaded."""
+    via_claude = grok_copy.via_claude or any(
+        s.via_claude and s.source == f"plugin: {p.grok_name}" for s in grok.skills
+    )
+    return claude_copy.sha if via_claude and claude_copy else grok_copy.sha
+
+
+def loaded(stack: Stack, claude: HostState | None, grok: HostState | None):
+    """Yield (plugin, {host: (key, sha)}) for each declared plugin, with the hosts that want it enabled and have it so."""
+    for p in stack.plugins:
+        c = _declared(claude, p.claude_id, p.claude_state)
+        g = _declared(grok, p.grok_name, p.grok_state)
+        shas = {}
+        if c:
+            shas["claude"] = (p.claude_id, c.sha)
+        if g:
+            shas["grok"] = (p.grok_name, _grok_sha(p, c, g, grok))
+        yield p, shas
+
+
+def loaded_shas(stack: Stack, claude: HostState | None, grok: HostState | None) -> dict[str, str]:
+    """{plugin name: sha} of what is loaded now: Claude's when both hosts load it, minus a Grok Local install's "+hash"."""
+    out = {}
+    for p, shas in loaded(stack, claude, grok):
+        if sha := next((s for _, s in shas.values() if s), None):
+            out[p.name] = sha.split("+")[0]
+    return out
