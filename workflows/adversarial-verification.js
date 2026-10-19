@@ -224,11 +224,16 @@ async function planOrder() {
 }
 
 async function writeState(state) {
-  const W = await git('write_state', { plan_hash: args.plan_hash, json: JSON.stringify(state) })
-  const text = get(W, 'W', 'state_json', 'string')
-  let back
-  try { back = JSON.parse(text) } catch {}
-  check(same(back, state), 'W.state_json: differs from the state written')
+  // The git agent copies the file back by hand. One-line JSON ending in `}}}` came back short
+  // often enough to stop every lane of a run, so write it indented and give a fresh agent one more try.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const W = await git('write_state', { plan_hash: args.plan_hash, json: JSON.stringify(state, null, 2) })
+    const text = get(W, 'W', 'state_json', 'string')
+    let back
+    try { back = JSON.parse(text) } catch {}
+    if (same(back, state)) return
+  }
+  check(false, 'W.state_json: differs from the state written')
 }
 
 // The newest receipt: the one no other done task starts from. Following pre links from it
@@ -251,16 +256,22 @@ function restartTarget(state, done) {
 
 // Fresh run or restart. Returns the state and the ids done in an earlier run.
 async function runState() {
-  const ST = await git('read_state', { plan_hash: args.plan_hash })
-  const text = get(ST, 'ST', 'state_json', 'string')
+  // Same hand-copy risk as writeState: a read that does not parse gets one fresh agent.
+  let ST, text, state
+  for (let attempt = 0; attempt < 2; attempt++) {
+    ST = await git('read_state', { plan_hash: args.plan_hash })
+    text = get(ST, 'ST', 'state_json', 'string')
+    if (text === '') break
+    state = undefined
+    try { state = JSON.parse(text) } catch {}
+    if (isObj(state)) break
+  }
   const done = new Set()
   if (text === '') {
     const state = { plan_hash: args.plan_hash, run_start: get(ST, 'ST', 'head', 'string'), tasks: {} }
     await writeState(state)
     return { state, done }
   }
-  let state
-  try { state = JSON.parse(text) } catch {}
   check(isObj(state) && state.plan_hash === args.plan_hash && typeof state.run_start === 'string' &&
     isObj(state.tasks) && Object.values(state.tasks).every(t =>
       isObj(t) && typeof t.pre === 'string' && (t.receipt === null || typeof t.receipt === 'string')),
