@@ -1,0 +1,5 @@
+#!/bin/bash
+# Fake claude/grok binary for the seat runner tests: claude gets the prompt on stdin,
+# grok through --prompt-file. Each test writes its behaviour to $FAKE_DIR/<host>.body.
+if [ "$1" = --prompt-file ]; then me="$FAKE_DIR/grok"; PROMPT=$(cat "$2"); else me="$FAKE_DIR/claude"; PROMPT=$(cat); fi
+. "$me.body"
