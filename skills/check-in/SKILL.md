@@ -8,8 +8,8 @@ description: "Use to rigorously confirm a goal or completion condition is ACTUAL
 Confirm a goal is *actually* met, with evidence — not just because the transcript
 claims it. This is the rigorous companion to the built-in `/goal` command: `/goal`'s
 evaluator reads only the conversation; `check-in` runs a check command and reads
-the repo, has three cheap Haiku judges weigh in, then an **Opus 4.8 overseer** renders
-the authoritative verdict.
+the repo, has three judges weigh in, then an overseer renders the authoritative
+verdict. On Claude Code the panel is Haiku and the overseer is Opus 4.8. Spawn is **Host**.
 
 Use this when completion is *claimed* and a wrong "done" is costly: before a handoff,
 before a merge, before clearing a goal. It renders a verdict — it does **not** loop
@@ -18,6 +18,13 @@ or do the work; the caller acts on the verdict.
 `check-in` cannot replace the `/goal` command itself (built-in commands win at
 parse time). Run `/goal` — or any work loop — for the iteration; invoke `check-in`
 at the claimed finish line for a context-verified second opinion.
+
+## Host
+
+Same evidence bundle, same three panel judges, same overseer. Only the spawn differs.
+
+- **Claude Code.** Use the Agent tool. Panel: `model: haiku`. Overseer: `model: opus` (Opus 4.8). Spawn all three panelists in one response.
+- **Grok Build.** Use `spawn_subagent` with `background: true`. Omit `subagent_type`. Do not pass `model`; this tool has no model argument, so the panel and the overseer use the session model. Collect them with `get_command_or_subagent_output`.
 
 ## Inputs (the calling agent / orchestrator supplies)
 
@@ -40,16 +47,16 @@ at the claimed finish line for a context-verified second opinion.
 
 ### 2. Convene the advisory panel — 3 Haiku judges, in parallel
 
-Spawn **all three in a single response** (so they run concurrently) using the Agent
-tool with **`model: haiku`**. Give each: the condition, the full evidence bundle, its
-lens prompt below, and license to Read/Grep for more if its lens needs it. The panel
-**advises**; it does not decide — its votes and gaps are input to the overseer (Step 4).
+Spawn **all three in a single response** (so they run concurrently) using the spawn
+in **Host**. Give each: the condition, the full evidence bundle, its lens prompt
+below, and license to Read/Grep for more if its lens needs it. The panel **advises**;
+it does not decide — its votes and gaps are input to the overseer (Step 4).
 
-> **Why Agent subagents and not `/debate` / acpx:** the `/debate` panel runs on
+> **Why in-process judges and not `/debate` / acpx:** the `/debate` panel runs on
 > acpx, which depends on external agent CLIs that aren't always installed (and are
-> broken in some environments). Agent-tool subagents are the portable substitute and
-> let you pin the exact model tier each judge needs — cheap Haiku panelists, an
-> Opus 4.8 overseer.
+> broken in some environments). In-process subagents are the portable substitute.
+> Claude Code can pin a cheap panel and an Opus 4.8 overseer. Grok Build cannot pin
+> a model on `spawn_subagent`.
 
 **Judge A — Literalist:**
 > Decompose the completion condition into every atomic clause. For each clause,
@@ -87,7 +94,8 @@ weigh the panel accordingly.
 
 ### 4. Convene the overseer — one Opus 4.8 judge (the deciding vote)
 
-Spawn a single Agent with **`model: opus`** (Opus 4.8). Give it: the condition, the
+Spawn one overseer using the spawn in **Host**. On Claude Code that is `model: opus`
+(Opus 4.8). Give it: the condition, the
 full evidence bundle, the panel tally from Step 3, and all three judges' raw returns
 (votes, confidences, reasons, gaps). The overseer has **final say in both directions** —
 it may ratify the panel or overturn it either way.
@@ -167,10 +175,8 @@ GAPS: ["<raw gap>", ...]
 
 - Pure prose skill — no scripts. The panel tally is advisory and by hand; the
   overseer's single verdict is authoritative.
-- Uses the Agent tool with pinned models: **haiku** for the three panelists, **opus**
-  (Opus 4.8) for the overseer. Claude Code only for now. A Grok-native port using
-  `spawn_subagent` + a fast model for the panel and a frontier model for the overseer
-  is a clean future addition (`SKILL.grok.md`).
+- Spawn and model pin are in **Host**. Claude Code pins Haiku for the panel and Opus
+  for the overseer. Grok Build runs all four judges on the session model.
 
 ---
 

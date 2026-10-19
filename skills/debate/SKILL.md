@@ -9,7 +9,16 @@ Before implementing any non-trivial plan, send it to a panel of independent AI r
 
 This is the highest-leverage quality gate in the toolkit. Use it on design specs, implementation plans, architecture changes, and any work where "I wish I had caught that earlier" is a risk.
 
+## Host
+
+Read this before any command in this file.
+
+- **Grok Build.** Skip acpx, `/debate:*`, `~/.claude/debate-acpx.json`, and `SKILL.workflow.md`. Run **Grok Build — panel** at the bottom of this file.
+- **Claude Code.** Run the acpx engine below. If the acpx preflight fails, use `SKILL.workflow.md` in this directory. Do not run the Grok panel.
+
 ## Prerequisites (one-time)
+
+**Claude Code.** Grok Build skips everything until **Grok Build — panel**.
 
 ```bash
 # 1. acpx (unified agent protocol client)
@@ -54,9 +63,9 @@ Mix and match any acpx-supported agents: `codex`, `gemini`, `claude`, `opencode`
 
 See `/debate:acpx-setup` output for the current panel and any missing auth.
 
-## Engine selection (read FIRST — saves a burned panel run)
+## Engine selection (Claude Code)
 
-Three interchangeable engines run the same panel/personas/SHA discipline:
+Grok Build does not use this list. It uses **Grok Build — panel**. Claude Code picks acpx, and uses the Workflow port when acpx fails:
 
 1. **acpx** (`/debate:all`, cc-debate plugin) — multi-vendor CLIs. Use when
    acpx subprocesses actually work in this environment.
@@ -64,7 +73,7 @@ Three interchangeable engines run the same panel/personas/SHA discipline:
    file) — the panel as a Workflow script with schema-forced verdicts; no
    external CLIs. Use when acpx is broken/unavailable, or when you want
    structured findings instead of regexing verdicts from prose.
-3. **Grok Build port** (`SKILL.grok.md`) — for Grok Build sessions.
+3. **Grok Build panel** — the section at the bottom of this file. Not acpx. Not `SKILL.workflow.md`.
 
 **The external-CLI path is the flaky one — probe it, don't trust it.**
 Observed failure modes (different sessions, same environment): (a) every
@@ -133,9 +142,60 @@ Run `/debate:acpx-setup` if you haven't configured reviewers yet.
 
 ---
 
-**Grok users:** There is a native Grok Build port of this skill, vendored alongside this file as `debate/SKILL.grok.md` (installed to `~/.grok/skills/debate/SKILL.md` by `install.sh --target grok`). It uses the same philosophy (personas, parallel subagents, debate rounds, SHA gates) but is implemented with Grok's `spawn_subagent` + `resume_from` + `todo_write` primitives instead of acpx + external CLIs. Grok Build also reads `~/.claude/skills/`, but dedupes skills by name with `~/.grok/skills/` taking priority — so installing both variants gives each environment the right one automatically. The versions are complementary.
+**Claude Code Workflow users:** `SKILL.workflow.md` (this directory) runs the panel on Claude Code's Workflow tool. Same personas from `~/.claude/debate-acpx.json`. Claude Code only.
 
-**Claude Code Workflow users:** The third port, `debate/SKILL.workflow.md`, runs the panel on Claude Code's Workflow tool (schema-forced verdicts, no external CLIs). Same personas from `~/.claude/debate-acpx.json`, same round/SHA discipline and scripts. Born from a 2026-06 postmortem across 15 sessions where the acpx path was environment-broken and every panel ran as hand-rolled Agent subagents — this port codifies that fallback properly.
+## Grok Build — panel
+
+Skip every Claude section above. No acpx. No `/debate:*`. No `SKILL.workflow.md`.
+
+Four personas, in parallel. Then synthesis. Then one debate exchange on real contradictions. Then a SHA gate. Max 3 revision rounds.
+
+### Setup
+
+```bash
+REVIEW_ID=$(date +%s | shasum | cut -c1-8)
+WORK_DIR="$PWD/.tmp/grok-debate-$REVIEW_ID"
+mkdir -p "$WORK_DIR"
+```
+
+Write the plan verbatim to `$WORK_DIR/plan.md`. Show the first 20 lines and `wc -w`. Record the SHA:
+
+```bash
+shasum -a 256 "$WORK_DIR/plan.md" | cut -d' ' -f1 > "$WORK_DIR/round-0-plan.sha"
+```
+
+`todo_write` a board: capture, round 1, synthesis, debate, SHA, report.
+
+### Round
+
+One `spawn_subagent` per persona, same turn, `background: true`. Omit `subagent_type`. Do not pass `model`. The prompt tells the reviewer to read `$WORK_DIR/plan.md`. A subagent does not see this chat. Each prompt requires the reply to end with `VERDICT: APPROVED` or `VERDICT: REVISE`.
+
+1. **Bullshit Detector.** Vague claims, unstated assumptions, "we'll figure it out later." Ask what the plan claims and why anyone should believe it.
+2. **Constraint Engineer.** Physical, mathematical, and incentive limits. Ask what must be true, and whether it is true.
+3. **Pager Duty Engineer.** Partial failure, config drift, 3am debug. No answer for "how do we debug this while it is on fire" means `REVISE`.
+4. **Future Me.** Eighteen-month maintenance, one-person knowledge, decisions that look good in the PR and opaque later.
+
+Then `get_command_or_subagent_output` with those task ids. Read each reply in full.
+
+### Synthesis
+
+List unanimous points, unique points, and contradictions. All `APPROVED`: go to the SHA gate. Any `REVISE`: debate the disagreeing pair, unless the user says to revise now.
+
+### Debate
+
+`spawn_subagent` with `resume_from` set to that reviewer's id. Quote the other side. Ask whether the verdict still holds. One exchange. Re-synthesize.
+
+### SHA gate
+
+Before any `APPROVED`, recompute `shasum -a 256` of `$WORK_DIR/plan.md`. Compare it to the SHA stored at the end of the last reviewer round. On a mismatch, re-review the diff, or tell the user the reviewers never saw these bytes and stop. Do not claim `APPROVED` on unseen bytes.
+
+### Revise
+
+Max 3 rounds. Write `$WORK_DIR/revisions-round-N.md`. Update `plan.md`. Store the new SHA. Re-run the reviewers who said `REVISE`, with the revision summary in the prompt.
+
+### Report
+
+Consensus, remaining concerns, each verdict, then `VERDICT: APPROVED` or `VERDICT: REVISE`. Leave `$WORK_DIR` unless the user says to delete it.
 
 ---
 

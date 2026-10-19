@@ -4,12 +4,19 @@ description: Use when a problem has been solved to document the solution for fut
 argument-hint: "[optional: brief context about the fix]"
 ---
 
-> Vendored verbatim from Samuel Reed's ([STRML](https://github.com/STRML))
-> [`cc-skills`](https://github.com/STRML/cc-skills) (MIT). Unmodified; upstream
-> remains canonical. Claude Code only.
+> Vendored from Samuel Reed's ([STRML](https://github.com/STRML))
+> [`cc-skills`](https://github.com/STRML/cc-skills) (MIT). Upstream remains
+> canonical. Local delta: the host block below.
 
 
 # /compound
+
+## Host
+
+The memory directory comes from the session instructions. Subagents return text only. The orchestrator writes.
+
+- **Claude Code.** Write `~/.claude/projects/<project-path>/memory/solution_<slug>.md`. Add a pointer line to `MEMORY.md`. Warn at 190 lines.
+- **Grok Build.** Write one `topics/solution-<slug>.md` under the workspace topics directory named in the session memory instructions. Do not create or edit `MEMORY.md`. The index is generated. Spawn the two research passes with `spawn_subagent` (`background: true`). Omit `subagent_type`. Collect with `get_command_or_subagent_output`.
 
 Document a recently solved problem, writing it into the project memory system where future sessions automatically load it.
 
@@ -35,10 +42,10 @@ If preconditions aren't met, say so and stop. If unsure whether the fix is verif
 
 ## Output
 
-A single memory file in the project memory directory (path from system prompt context, e.g., `~/.claude/projects/<project-path>/memory/`):
+A single memory file. Path is **Host**.
 
-- `memory/solution_<slug>.md` — structured solution with memory frontmatter
-- `memory/MEMORY.md` — pointer line added to index
+- **Claude Code.** `memory/solution_<slug>.md`, plus a pointer line in `MEMORY.md`.
+- **Grok Build.** `topics/solution-<slug>.md` only.
 
 No other files are written.
 
@@ -46,7 +53,7 @@ No other files are written.
 
 ### Phase 0: Dedup Check
 
-Before launching research, search existing `memory/solution_*.md` files for a solution covering the same root cause. Grep for the affected component name and key error message or symptom in both filenames and `description:` frontmatter fields.
+Before launching research, search the **Host** directory for a solution covering the same root cause (`solution_*.md` or `solution-*.md`). Grep for the affected component name and key error message or symptom in both filenames and `description:` frontmatter fields.
 
 - **If a match is found:** show it to the user and ask whether to update the existing entry or create a new one. If updating, skip Phase 1 and edit the existing file directly.
 - **If no match:** proceed to Phase 1.
@@ -59,7 +66,7 @@ Subagents return TEXT DATA only. They must NOT use Write, Edit, or create any fi
 ALL subagents must succeed before Phase 2. If any subagent fails or times out, abort and report which failed and why.
 </critical_requirement>
 
-Launch two subagents IN PARALLEL:
+Launch two subagents IN PARALLEL (spawn per **Host**):
 
 #### 1. Problem & Solution Extractor
 - Extract from conversation history: problem type, component, symptoms, error messages
@@ -85,11 +92,11 @@ Derive from the problem title:
 - Strip filler words (the, a, an, in, for, etc.)
 - Example: "N+1 Query in Brief Generation" → `n-plus-1-query-brief-generation`
 
-Check for collision with existing `memory/solution_<slug>.md`. If collision, append `-2` (or `-3`, etc.).
+Check for a collision in the **Host** directory. If collision, append `-2` (or `-3`, etc.).
 
 #### Step 2: Write the memory file
 
-Create `memory/solution_<slug>.md`:
+Create the **Host** file:
 
 ```markdown
 ---
@@ -121,7 +128,9 @@ type: project
 
 The `description` field determines whether future sessions find this. Be specific: "N+1 query in brief generation causing 30s page loads" not "performance issue fix".
 
-#### Step 3: Update MEMORY.md
+#### Step 3: Update MEMORY.md (Claude Code only)
+
+Grok Build skips this step. Do not create or edit `MEMORY.md`.
 
 Check MEMORY.md line count first. If at or above 190 lines, warn the user that memory is near capacity and suggest pruning stale entries before adding more.
 
@@ -144,6 +153,6 @@ Add a pointer line following the existing format. Keep MEMORY.md as an index —
 ```
 Done — solution documented.
 
-Memory: memory/solution_<slug>.md
-MEMORY.md: pointer added ([N] lines, [capacity status])
+Memory: <host path>/solution-<slug>.md
+Claude Code only — MEMORY.md: pointer added ([N] lines, [capacity status])
 ```

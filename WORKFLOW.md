@@ -15,7 +15,7 @@ If you only read one thing, read the pipeline table.
 | 0 | **Bootstrap** | `/init` | First time in a new repo — writes `CLAUDE.md` + a language-detected `.devcontainer`. |
 | 1 | **Think** | superpowers `/brainstorm` → writing-plans | Any non-trivial change: turn an idea into a design, then a task-by-task plan. |
 | 2 | **Pressure-test** | `/debate:all` | Send the plan (or a stubborn bug) to a **Grok + ChatGPT + Claude** reviewer panel *before* writing code. They argue out contradictions and return `APPROVED` / `REVISE`. |
-| 3 | **Build** | superpowers subagent execution · ultracode Workflow · `parallel-orchestrate` | Execute the approved plan. Reach for `parallel-orchestrate` when the plan has 3+ independent features that each want their own branch/PR. |
+| 3 | **Build** | superpowers subagent execution · ultracode Workflow | Execute the approved plan. |
 | 4 | **Clean** | `/code-cleanup` | Right after the build lands — dedup, dead code, weak types, dead paths, AI slop, run by worktree-isolated forks so nothing collides. |
 | 5 | **Map** | `/update-codemaps` | After cleanup — regenerate the token-lean architecture maps in `codemaps/` so the *next* session starts with accurate context. |
 | 6 | **Capture** | `skill-postmortem` · `session-learnings` · `compound` | Close the loop: review a skill that misbehaved, fold session lessons into `CLAUDE.md`, and write hard-won fixes to project memory. |
@@ -40,11 +40,8 @@ debates the contradictions, and converges on a verdict with a SHA-verified plan.
 Also works on a nasty bug: paste the symptom + suspect code and let the panel
 theorize. Runs on the `cc-debate` plugin under the hood.
 
-**3 · Build** — execute the approved plan. For a linear change, superpowers
-subagent execution or an ultracode Workflow is enough. For a plan with several
-independent features, `parallel-orchestrate` fans out one agent per feature into
-its own git worktree + branch (CodeRabbit/PR-friendly), each inheriting the
-orchestrator's recon as live context.
+**3 · Build** — execute the approved plan with superpowers subagent execution or
+an ultracode Workflow.
 
 **4 · `/code-cleanup`** — deep, systematic cleanup after the feature is in.
 Nine concern-scoped forks (dedup, type consolidation, dead code, circular deps,
@@ -71,7 +68,7 @@ Skeptic) vote on whether the goal is *actually* met, returning actionable gaps.
 
 | Tool | Origin |
 |------|--------|
-| `debate`, `code-cleanup`, `parallel-orchestrate`, `skill-postmortem`, `check-in` | Mine (some forked from STRML, then developed further). |
+| `debate`, `code-cleanup`, `skill-postmortem`, `check-in` | Mine (some forked from STRML, then developed further). |
 | `session-learnings`, `compound`, `/init` | [STRML/cc-skills](https://github.com/STRML/cc-skills) — vendored verbatim (MIT), credited in each file. |
 | `/update-codemaps` | [STRML/cc-codemaps](https://github.com/STRML/cc-codemaps) — referenced as a plugin (not vendored). |
 | `/brainstorm`, writing-plans, subagent execution | Anthropic **superpowers** plugin — the planning/execution engine this loop wraps. |

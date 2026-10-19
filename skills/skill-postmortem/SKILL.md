@@ -21,19 +21,30 @@ Review a skill against the sessions where it was actually invoked. Surface frict
 - Plugin-namespaced skill (`<plugin>:<name>`) — its source lives upstream; edit there and PR back, don't fork-and-edit locally
 - The "friction" is user-side environment drift (e.g. an upstream tool was upgraded and broke the skill) — pin or version-detect, don't mutate the skill on every external change
 
+## Host
+
+One `SKILL.md`. Resolve paths here, then follow the phases unchanged.
+
+- **Skill file.** The `SKILL.md` the user named. Search the directory that contains this skill, `~/.claude/skills/<name>/SKILL.md`, `~/.claude/plugins`, and `~/.grok` plugin and skills directories. Follow symlinks. A plugin-namespaced name (`<plugin>:<name>`) whose source you cannot find in a checkout you can edit: abort and say to edit it upstream.
+- **Session evidence.** Claude Code: `~/.claude/projects/*/*.jsonl`. Grok Build: `~/.grok/sessions/*/*/*.jsonl` (the first directory name is the percent-encoded cwd). Search whichever of those directories exist.
+- **Commit.** Edit the git checkout the symlink points at. A plugin-cache copy is not the source. If that directory is not a git repo, warn and stay read-only.
+
 ## Preflight
 
-1. **Target skill resolves.** Skill name supplied; `~/.claude/skills/<name>/SKILL.md` exists (follow symlinks). If plugin-namespaced, abort: "this skill targets user-level skills only."
-2. **Source dir is a git repo.** `git -C $(readlink -f ~/.claude/skills/<name>)/.. rev-parse --is-inside-work-tree`. If not, postmortem can produce edits but can't commit them — warn and continue read-only.
-3. **JSONL projects dir exists.** `~/.claude/projects/`. If empty, no evidence — abort cleanly.
+1. **Target skill resolves.** Skill name supplied. The host skill-file search returns a `SKILL.md`.
+2. **Source dir is a git repo.** `git -C` the real path of that file's parent `rev-parse --is-inside-work-tree`. If not, postmortem can produce edits but can't commit them — warn and continue read-only.
+3. **Session evidence exists.** At least one host evidence directory exists and contains a `.jsonl`. If none do, abort cleanly.
 
 ## Phase 1 — Gather evidence
 
-Find every recent session JSONL that mentions the target skill:
+Find every recent session JSONL that mentions the target skill. Use the host evidence globs:
 
 ```bash
 SKILL_NAME=<name>
-grep -l "\"$SKILL_NAME\"" ~/.claude/projects/*/*.jsonl 2>/dev/null \
+grep -l "\"$SKILL_NAME\"" \
+  ~/.claude/projects/*/*.jsonl \
+  ~/.grok/sessions/*/*/*.jsonl \
+  2>/dev/null \
   | xargs -I{} ls -la {} \
   | sort -k6,7 \
   | tail -30

@@ -1,7 +1,8 @@
 # agent-shenanigans — guide for AI agents
 
 This repository is a **Claude Code plugin**: a bundle of skills, one slash-command,
-and the manifests that make it installable via `/plugin`. If you are an AI agent
+and the manifests that make it installable via `/plugin`. Grok Build loads the same
+`skills/<name>/SKILL.md` from its plugin cache. If you are an AI agent
 working *in this repo*, read this first. (This file follows the `AGENTS.md`
 convention; `CLAUDE.md` is symlinked to it.)
 
@@ -28,15 +29,14 @@ A few skills/commands are **vendored verbatim** from
 
 ## Bundled scripts (important)
 
-A skill that ships an executable (e.g. `parallel-orchestrate/scripts/spawn-parallel.py`,
-`code-cleanup/scripts/cc-fork`) must **not** hard-code `~/.claude/skills/<name>/...` —
-that path is wrong once the skill lives in the plugin cache. Resolve the script at
-runtime instead: prefer `${CLAUDE_PLUGIN_ROOT}/skills/<name>/scripts/...`, and fall
-back to discovery:
+A skill that ships an executable (today `code-cleanup/scripts/cc-fork`) must **not**
+hard-code `~/.claude/skills/<name>/...` — that path is wrong once the skill lives in
+the plugin cache. Resolve the script at runtime instead: prefer
+`${CLAUDE_PLUGIN_ROOT}/skills/<name>/scripts/...`, and fall back to discovery:
 ```bash
 find "$HOME/.claude/plugins" "$HOME/.claude/skills" -path '*<name>/scripts/<file>' 2>/dev/null | head -1
 ```
-See `skills/parallel-orchestrate/SKILL.md` Preflight for the canonical pattern.
+See the dependency block in `skills/code-cleanup/SKILL.md` for the pattern.
 
 ## Adding or editing a skill
 
@@ -68,4 +68,4 @@ same attribution header as a vendored skill.
   names only — no API keys or tokens.
 - Keep each skill self-contained and single-purpose; if a `SKILL.md` is doing two jobs,
   split it.
-- Dormant `SKILL.grok.md` files remain from the dual-CLI era; the plugin ignores them.
+- One `SKILL.md` per skill for both hosts. Put host differences in a Host section in that file. Do not add `SKILL.grok.md`.

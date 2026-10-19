@@ -5,8 +5,9 @@ description: "Use when a codebase needs deep, systematic cleanup — after agent
 
 # Code Cleanup
 
-Recon once in this session, then fan out to nine forked subagents that inherit the
-conversation — each owns exactly one cleanup concern. Reconcile their reports.
+Recon once in this session, then fan out to nine subagents. Each owns one cleanup
+concern. Reconcile their reports. Claude Code inherits this chat via `cc-fork`.
+Grok Build does not. See **Host**.
 
 > **Adapted from** Samuel Reed's ([STRML](https://github.com/STRML))
 > [`cc-skills`](https://github.com/STRML/cc-skills) `code-cleanup` command and
@@ -14,7 +15,31 @@ conversation — each owns exactly one cleanup concern. Reconcile their reports.
 > mode, and folds in a scope-discipline guard (see `references/cleanup-rules.md`).
 > `scripts/cc-fork` is vendored verbatim from upstream.
 
-**Dependency:** `cc-fork` on PATH. It ships with this skill at `scripts/cc-fork`. Symlink
+## Modes
+
+Paste this block at the top of every fork prompt. A fork does not inherit a slash-command mode.
+
+```
+Follow the caveman skill at ultra and the ponytail skill at full.
+If the user invoked ponytail ultra, use ultra instead of full.
+Caveman ultra: drop articles and filler. Fragments are OK. Keep not, never, no, only, and except. Do not invent abbreviations. Do not use arrows. State each fact once.
+Ponytail full: smallest change that finishes the mandate. No extra options, wrappers, or abstractions. Deletion beats addition. End with what you skipped and the risk.
+Ponytail ultra also questions any part the mandate does not justify, and does not do that part.
+Code, comments, and commit messages stay normal English.
+Grok: strongest Grok model, effort xhigh. Do not lower effort. Never use Fable.
+Claude: effort xhigh. Haiku 5.5 for a mechanical mandate, Sonnet 5.5 for a local judgment, Opus 5.5 for a design or spec gap. Opus 5 means Opus 5.5.
+```
+
+On Claude Code the nine cleanup mandates are already the parallel set. Do not invent a second phase graph. Claude effort stays xhigh. Pick Haiku 5.5, Sonnet 5.5, or Opus 5.5 per mandate from the block above.
+
+## Host
+
+Same recon, same nine mandates, same worktrees, same reconcile. Every fork prompt starts with **Modes**.
+
+- **Claude Code.** Fan out with `cc-fork` so each fork inherits this session. If `cc-fork` is missing, use the Agent-tool fallback at the end. That fallback must paste the recon into every prompt.
+- **Grok Build.** Do not call `cc-fork`. Do not symlink it. `spawn_subagent` does not see this chat. Paste **Modes**, Phase 1 recon, and `references/cleanup-rules.md` into every prompt. Launch the nine mandates with `spawn_subagent` (`background: true`, omit `subagent_type`) in one turn. Stagger if you hit a rate limit. Collect with `get_command_or_subagent_output`. Each fork writes `.tmp/code-cleanup/reports/fork-NN.out` and ends with `WROTE_REPORT`.
+
+**Dependency (Claude Code):** `cc-fork` on PATH. It ships with this skill at `scripts/cc-fork`. Symlink
 it once to a stable spot so it's on PATH for every run — the skill's own location differs
 between a plugin install and a symlink install, so resolve it rather than assuming `$PWD`:
 ```bash
@@ -26,8 +51,9 @@ Or invoke it by that resolved path. If `cc-fork` is missing, use the Agent-tool 
 
 ## Phase 1 — Recon (this session)
 
-Build understanding **in the conversation, not in a file**. Everything said or read
-here is inherited by every fork — don't hoard it in `.tmp/`.
+Build understanding **in the conversation, not in a file**. On Claude Code, everything
+said or read here is inherited by every `cc-fork`. On Grok Build it is not. Paste the
+summary into each `spawn_subagent` prompt. Don't hoard it in `.tmp/`.
 
 Work through:
 
@@ -49,7 +75,8 @@ Work through:
 
 **Then load the scope-discipline guard.** Read `references/cleanup-rules.md` and state
 it aloud in the conversation, and read `.agent/rules.md` at the project root if it
-exists. These become part of the context every fork inherits — they're the "when to
+exists. On Claude Code these become context every fork inherits. On Grok Build, paste
+them into each prompt. They're the "when to
 stop / don't over-correct" rules the per-concern mandates don't carry on their own.
 Project `.agent/rules.md` wins over the defaults on conflict.
 
@@ -109,8 +136,9 @@ TASKS=(
   "MODE=<edit|dry-run>. Mandate: AI slop. Remove narration comments, 'replaced old Y with new Z' notes, commented-out code, obvious-from-code comments, stub scaffolds. Keep comments that explain why, constraints, or non-obvious invariants — rewrite them for a new reader, no references to prior versions. Report format same as above."
 )
 
-# Single cc-fork call; it snapshots this session's JSONL into N forks that resume the
-# full recon as inherited context, and staggers launches itself.
+# Prefix every TASK with the Modes block before this call.
+# Claude Code only. Grok Build does not run this line — see Host.
+# cc-fork snapshots this session's JSONL into N forks that resume the full recon.
 cc-fork --stagger 5 --output-dir .tmp/code-cleanup/reports "${TASKS[@]}"
 ```
 
@@ -147,11 +175,13 @@ the slowest fork, not the stagger.
 - **Evidence before edits.** No grep/AST/tool output, no edit.
 - **Prove every fix.** Typecheck and tests pass after each batch, or it reverts.
 
-## Fallback: no cc-fork
+## Fallback (Claude Code): no cc-fork
+
+Grok Build never uses this fallback. It uses the Host spawn.
 
 If `cc-fork` isn't on PATH, use the Agent tool with a **byte-identical prefix** across
-the nine parallel spawns. The prefix must inline the full recon, the scope rules, and
-each mandate — Agent-tool forks don't see conversation history. Stagger spawn #1 until
+the nine parallel spawns. The prefix must inline **Modes**, the full recon, the scope
+rules, and each mandate. Agent-tool forks don't see conversation history. Stagger spawn #1 until
 streaming confirms cache commit, then launch 2–9 in one message. Inferior (each fork
 re-reads ambient context) but works with zero install. Edit-mode worktree isolation
 still applies — give each spawn its worktree path.

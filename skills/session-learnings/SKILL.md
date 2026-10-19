@@ -4,16 +4,26 @@ description: End-of-session skill that captures lessons learned and updates proj
 version: "1.0.0"
 ---
 
-> Vendored verbatim from Samuel Reed's ([STRML](https://github.com/STRML))
-> [`cc-skills`](https://github.com/STRML/cc-skills) (MIT). Unmodified; upstream
-> remains canonical. Claude Code only.
+> Vendored from Samuel Reed's ([STRML](https://github.com/STRML))
+> [`cc-skills`](https://github.com/STRML/cc-skills) (MIT). Upstream remains
+> canonical. Local delta: the host-file block below.
 
 
 # Session Learnings
 
+## Host file
+
+Write project instructions to one file.
+
+- If `AGENTS.md` exists, edit `AGENTS.md`. If `CLAUDE.md` is missing, `ln -s AGENTS.md CLAUDE.md`.
+- Else if `CLAUDE.md` exists and is not a symlink, edit `CLAUDE.md`.
+- Else create `AGENTS.md`, then `ln -s AGENTS.md CLAUDE.md`.
+
+`PreCompact` and `/clear` are Claude Code hooks. On Grok Build, run this skill only when the user asks. Every "CLAUDE.md" step below means the host file.
+
 ## Overview
 
-Captures important discoveries, gotchas, and patterns from the current session and persists them to the project's CLAUDE.md file. Prevents repeating the same mistakes across sessions.
+Captures important discoveries, gotchas, and patterns from the current session and persists them to the host file. Prevents repeating the same mistakes across sessions.
 
 ## When to Use
 
@@ -91,16 +101,20 @@ Review the session for:
 - Non-obvious discoveries
 - Commands or patterns you had to figure out
 
-### Step 2: Check Existing CLAUDE.md
+### Step 2: Check the host file
 ```bash
-# Check if project CLAUDE.md exists
-cat .claude/CLAUDE.md 2>/dev/null || echo "No project CLAUDE.md"
+# Host file: AGENTS.md if present, else CLAUDE.md. See Host file above.
+if [ -f AGENTS.md ] || [ -L CLAUDE.md ]; then
+  cat AGENTS.md 2>/dev/null || cat CLAUDE.md
+else
+  cat CLAUDE.md 2>/dev/null || echo "No host file"
+fi
 ```
 
 ### Step 3: Update or Create
 
-**If CLAUDE.md exists:** Add new learnings to appropriate sections
-**If no CLAUDE.md:** Create `.claude/CLAUDE.md` with learnings
+**If the host file exists:** Add new learnings to appropriate sections.
+**If it does not:** Create `AGENTS.md` and `ln -s AGENTS.md CLAUDE.md`.
 
 ### Step 4: Format Consistently
 
@@ -125,7 +139,7 @@ cat .claude/CLAUDE.md 2>/dev/null || echo "No project CLAUDE.md"
 ### Example 1: Build Command Discovery
 **Session:** User corrected "use yarn, not npm"
 
-**Add to CLAUDE.md:**
+**Add to the host file:**
 ```markdown
 ## Commands
 - This project uses yarn (yarn.lock present)
@@ -136,7 +150,7 @@ cat .claude/CLAUDE.md 2>/dev/null || echo "No project CLAUDE.md"
 ### Example 2: File Structure Gotcha
 **Session:** Spent time looking for components in wrong place
 
-**Add to CLAUDE.md:**
+**Add to the host file:**
 ```markdown
 ## File Structure
 - Components are in `src/components/` not `components/`
@@ -147,7 +161,7 @@ cat .claude/CLAUDE.md 2>/dev/null || echo "No project CLAUDE.md"
 ### Example 3: API Pattern
 **Session:** Learned the project's API conventions
 
-**Add to CLAUDE.md:**
+**Add to the host file:**
 ```markdown
 ## API Conventions
 - All API routes in `src/pages/api/`
@@ -171,5 +185,5 @@ Before session end or compact:
 - [ ] Review corrections user made during session
 - [ ] Note any non-obvious commands or workflows discovered
 - [ ] Check for project conventions that differ from defaults
-- [ ] Update `.claude/CLAUDE.md` with new learnings
+- [ ] Update the host file with new learnings
 - [ ] Keep entries concise and actionable

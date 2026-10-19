@@ -1,9 +1,10 @@
 let meta = #{
     name: "adversarial-verification",
-    description: "Execute tasks one at a time, then skeptic, teeth, and gates. Batch review after the last task.",
-    when_to_use: "Any repo. Pass args.repo, args.test_cmd, and args.tasks. One fix round per task. Stops on a second failure.",
+    description: "Split the build into dependent tasks, then implement one at a time with skeptic, teeth, and gates.",
+    when_to_use: "Any repo. Pass args.repo, args.test_cmd, and args.tasks. Optional args.ponytail is full or ultra. One fix round per task. Stops on a second failure.",
     phases: [
-        #{ title: "Tasks", detail: "implement, skeptic, teeth, gates, sequential" },
+        #{ title: "Plan", detail: "phases, subprojects, tasks, deps, model tier" },
+        #{ title: "Tasks", detail: "implement, skeptic, teeth, gates, dependency order" },
         #{ title: "Review", detail: "three reviewers, one skeptic per finding" },
     ],
 };
@@ -119,6 +120,10 @@ let extra_rules = if args == () { "" } else { as_str(args.rules) };
 let forbid = if args == () { "" } else { as_str(args.forbid) };
 let base_sha = if args == () { "" } else { trimmed(as_str(args.base_sha)) };
 let do_review = if args == () { true } else if args.review == () { true } else { as_bool(args.review, true) };
+let ponytail = "full";
+if args != () && args.ponytail != () && trimmed(as_str(args.ponytail)) == "ultra" {
+    ponytail = "ultra";
+}
 
 let tasks = [];
 if args != () && args.tasks != () && type_of(args.tasks) == "array" {
@@ -169,15 +174,213 @@ if forbid != "" {
     rules += "\n";
 }
 
-fn caveman(p) {
+fn modes(p, level) {
     let s = "";
-    s += "Reply in caveman full. Drop articles and filler. Fragments are OK. Keep not, never, no, only, and except. Do not invent abbreviations. Do not use arrows.\n";
-    s += "Schema JSON stays valid. Code, comments, and commit messages stay normal English.\n\n";
+    s += "Follow the caveman skill at ultra and the ponytail skill at ";
+    s += level;
+    s += ".\n";
+    s += "Caveman ultra: drop articles and filler. Fragments are OK. Keep not, never, no, only, and except. Do not invent abbreviations. Do not use arrows. State each fact once.\n";
+    s += "Ponytail ";
+    s += level;
+    s += ": smallest change that finishes the task. No extra options, wrappers, or abstractions. Deletion beats addition. A bug fix goes in the shared code. End with what you skipped and the risk.\n";
+    if level == "ultra" {
+        s += "Question any part the need does not justify. Do not build that part.\n";
+    }
+    s += "Code, comments, commit messages, and schema JSON stay normal English.\n";
+    s += "This run is Grok. Use the strongest Grok model. Effort is xhigh. Do not lower effort. Never use Fable.\n";
+    s += "A Claude run of the same task uses effort xhigh and the recorded Claude model: Haiku 5.5, Sonnet 5.5, or Opus 5.5. Opus 5 means Opus 5.5.\n\n";
     s += p;
     s
 }
 
-fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
+fn listed(ids, id) {
+    let hit = false;
+    for x in ids {
+        if x == id { hit = true; }
+    }
+    hit
+}
+
+fn as_str_list(v) {
+    let out = [];
+    if v != () && type_of(v) == "array" {
+        for item in v {
+            let s = trimmed(as_str(item));
+            if s != "" { out.push(s); }
+        }
+    }
+    out
+}
+
+fn complexity_of(raw) {
+    if raw == "low" || raw == "medium" || raw == "high" { raw } else { "high" }
+}
+
+fn claude_model_for(complexity) {
+    if complexity == "low" {
+        "Haiku 5.5"
+    } else if complexity == "medium" {
+        "Sonnet 5.5"
+    } else {
+        "Opus 5.5"
+    }
+}
+
+fn next_claude(model) {
+    if model == "Haiku 5.5" {
+        "Sonnet 5.5"
+    } else if model == "Sonnet 5.5" {
+        "Opus 5.5"
+    } else {
+        "Opus 5.5"
+    }
+}
+
+fn deps_done(t, done_ids) {
+    let ok = true;
+    for d in t.depends_on {
+        if !listed(done_ids, d) { ok = false; }
+    }
+    ok
+}
+
+fn ready_tasks(pending, done_ids) {
+    let out = [];
+    for t in pending {
+        if deps_done(t, done_ids) { out.push(t); }
+    }
+    out
+}
+
+fn without_id(pending, id) {
+    let out = [];
+    for t in pending {
+        if t.id != id { out.push(t); }
+    }
+    out
+}
+
+fn shares_file(a, b) {
+    if a.files.len() == 0 || b.files.len() == 0 {
+        true
+    } else {
+        let hit = false;
+        for x in a.files {
+            for y in b.files {
+                if x == y { hit = true; }
+            }
+        }
+        hit
+    }
+}
+
+fn wave_note(ready) {
+    let ids = "";
+    let n = 0;
+    let parallel_ok = true;
+    for t in ready {
+        if n > 0 { ids += ", "; }
+        ids += t.id;
+        n += 1;
+    }
+    for a in ready {
+        for b in ready {
+            if a.id != b.id && shares_file(a, b) { parallel_ok = false; }
+        }
+    }
+    if n > 1 && parallel_ok {
+        log("parallel-eligible " + ids + " — run one at a time so gates read one HEAD");
+    } else if n > 1 {
+        log("sequential " + ids + " — shared or unknown files");
+    } else if n == 1 {
+        log("sequential " + ids);
+    }
+}
+
+fn normalize_plan(plan) {
+    if plan == () || type_of(plan) != "map" || plan["phases"] == () || type_of(plan["phases"]) != "array" {
+        #{ ok: false, error: "Plan agent returned no phases.", tasks: [] }
+    } else {
+        let tasks = [];
+        let seen = [];
+        let order = 0;
+        let bad = "";
+        for stage in plan["phases"] {
+            let subs = if stage == () { () } else { stage["subprojects"] };
+            if bad == "" && (subs == () || type_of(subs) != "array") {
+                bad = "A phase is missing subprojects.";
+            } else if bad == "" {
+                let stage_name = task_field(stage, "name");
+                for sub in subs {
+                    let task_list = if sub == () { () } else { sub["tasks"] };
+                    if bad == "" && (task_list == () || type_of(task_list) != "array") {
+                        bad = "A subproject is missing tasks.";
+                    } else if bad == "" {
+                        let sub_name = task_field(sub, "name");
+                        for task in task_list {
+                            if bad == "" {
+                                let id = task_field(task, "id");
+                                let title = task_field(task, "title");
+                                if id == "" || title == "" {
+                                    bad = "A task is missing id or title.";
+                                } else if listed(seen, id) {
+                                    bad = "Duplicate task id " + id;
+                                } else {
+                                    seen.push(id);
+                                    let complexity = complexity_of(task_field(task, "complexity"));
+                                    let model = claude_model_for(complexity);
+                                    let given = task_field(task, "claude_model");
+                                    if given != "" && given != model {
+                                        log("model tier corrected " + id);
+                                    }
+                                    let deps = if task == () { [] } else { as_str_list(task["depends_on"]) };
+                                    let files = if task == () { [] } else { as_str_list(task["files"]) };
+                                    tasks.push(#{
+                                        id: id,
+                                        title: title,
+                                        brief: task_field(task, "brief"),
+                                        plan: task_field(task, "plan"),
+                                        depends_on: deps,
+                                        complexity: complexity,
+                                        claude_model: model,
+                                        grok_model: "strongest Grok",
+                                        grok_effort: "xhigh",
+                                        files: files,
+                                        phase_name: stage_name,
+                                        subproject: sub_name,
+                                        order: order,
+                                    });
+                                    order += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if bad != "" {
+            #{ ok: false, error: bad, tasks: [] }
+        } else if tasks.len() == 0 {
+            #{ ok: false, error: "Plan agent returned no tasks.", tasks: [] }
+        } else {
+            let missing = "";
+            for t in tasks {
+                for d in t.depends_on {
+                    if !listed(seen, d) && missing == "" {
+                        missing = "Task " + t.id + " depends on unknown id " + d;
+                    }
+                }
+            }
+            if missing != "" {
+                #{ ok: false, error: missing, tasks: [] }
+            } else {
+                #{ ok: true, error: "", tasks: tasks }
+            }
+        }
+    }
+}
+
+fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd, level) {
     let title = task_field(t, "title");
     let brief = task_field(t, "brief");
     let plan = task_field(t, "plan");
@@ -193,12 +396,21 @@ fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
     impl_prompt += "\nBrief:\n";
     impl_prompt += brief;
     impl_prompt += "\n\nRead the plan and the files it names before editing. If a citation is stale, follow the current code and record the drift in the commit body.\n";
-    impl_prompt += "Do this task only. Do not start the next task.\n";
+    impl_prompt += "Do this task only. Do not re-split the build. Do not start the next task.\n";
+    impl_prompt += "Phase: ";
+    impl_prompt += task_field(t, "phase_name");
+    impl_prompt += "\nSubproject: ";
+    impl_prompt += task_field(t, "subproject");
+    impl_prompt += "\nClaude model for this task, if this task is later run on Claude: ";
+    impl_prompt += task_field(t, "claude_model");
+    impl_prompt += "\nFiles you may change:\n";
+    impl_prompt += json_encode(t.files);
+    impl_prompt += "\n";
     impl_prompt += "Run the task's own test first, then the test command. Run the lint command when one is set.\n";
     impl_prompt += "Conventional commit. Say why in the body. No co-author trailer.\n";
     impl_prompt += "Return summary, committed, commit_sha, issues.\n";
 
-    let impl_r = agent(caveman(impl_prompt), #{
+    let impl_r = agent(modes(impl_prompt, level), #{
         label: "implement",
         capability_mode: "all",
         output_schema: result_schema,
@@ -224,7 +436,7 @@ fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
         skeptic_prompt += "verdict=pass only if ALL hold: the claimed behaviour is in the shipped code; tests cover the failure path the task named; forbidden items were not changed; comments do not cite a plan or task number; every factual claim you check is true.\n";
         skeptic_prompt += "Default verdict=fail. evidence must quote files you opened.\n";
 
-        let sk = agent(caveman(skeptic_prompt), #{
+        let sk = agent(modes(skeptic_prompt, level), #{
             label: "skeptic",
             capability_mode: "read-only",
             output_schema: result_schema,
@@ -244,7 +456,7 @@ fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
         teeth_prompt += "4. git checkout HEAD -- <those production files>. git status must be clean aside from ignored build output.\n";
         teeth_prompt += "teeth_ok=true only if you watched the new tests fail. restored=true only after restore. If restore fails, stop.\n";
 
-        let th = agent(caveman(teeth_prompt), #{
+        let th = agent(modes(teeth_prompt, level), #{
             label: "teeth",
             capability_mode: "all",
             output_schema: result_schema,
@@ -265,7 +477,7 @@ fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
         }
         gate_prompt += "test_ok and clippy_ok come from YOUR exit codes.\n";
 
-        let ga = agent(caveman(gate_prompt), #{
+        let ga = agent(modes(gate_prompt, level), #{
             label: "gate",
             capability_mode: "execute",
             output_schema: result_schema,
@@ -276,8 +488,17 @@ fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
             "pass"
         } else {
             log("verify failed " + title);
+            let failed_model = task_field(t, "claude_model");
+            let retry_model = next_claude(failed_model);
+            log("claude fix tier " + failed_model + " -> " + retry_model);
             let fix_prompt = "";
             fix_prompt += "Verification failed. Fix every in-scope issue. Do not start a different task.\n\n";
+            fix_prompt += "Claude: the failed implementer was ";
+            fix_prompt += failed_model;
+            fix_prompt += ". Start a new implementer at ";
+            fix_prompt += retry_model;
+            fix_prompt += " with effort xhigh. Do not resume the failed Claude model. Opus 5.5 does not move higher.\n";
+            fix_prompt += "Grok: you are already the strongest model at effort xhigh. Fix in this agent.\n\n";
             fix_prompt += rules;
             fix_prompt += "\nSkeptic (untrusted): ";
             fix_prompt += json_encode(sk);
@@ -287,7 +508,7 @@ fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
             fix_prompt += json_encode(ga);
             fix_prompt += "\nRe-run the test command. Re-run the lint command when one is set. Commit the fix. No co-author trailer.\n";
 
-            let fix_r = agent(caveman(fix_prompt), #{
+            let fix_r = agent(modes(fix_prompt, level), #{
                 label: "fix",
                 capability_mode: "all",
                 resume_from: impl_r.agent_id,
@@ -296,17 +517,17 @@ fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
             if out_of(fix_r) == () {
                 "fail"
             } else {
-                let sk2 = agent(caveman(skeptic_prompt + "\nA fix commit landed. Re-read HEAD. Default verdict=fail.\n"), #{
+                let sk2 = agent(modes(skeptic_prompt + "\nA fix commit landed. Re-read HEAD. Default verdict=fail.\n", level), #{
                     label: "re-skeptic",
                     capability_mode: "read-only",
                     output_schema: result_schema,
                 });
-                let th2 = agent(caveman(teeth_prompt + "\nA fix commit landed. Re-run teeth against the new HEAD. Restore afterwards.\n"), #{
+                let th2 = agent(modes(teeth_prompt + "\nA fix commit landed. Re-run teeth against the new HEAD. Restore afterwards.\n", level), #{
                     label: "re-teeth",
                     capability_mode: "all",
                     output_schema: result_schema,
                 });
-                let ga2 = agent(caveman(gate_prompt + "\nA fix commit landed. Re-run the gates from scratch.\n"), #{
+                let ga2 = agent(modes(gate_prompt + "\nA fix commit landed. Re-run the gates from scratch.\n", level), #{
                     label: "re-gate",
                     capability_mode: "execute",
                     output_schema: result_schema,
@@ -321,7 +542,7 @@ fn run_one(t, rules, result_schema, repo, test_cmd, lint_cmd) {
     }
 }
 
-fn review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid) {
+fn review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid, level) {
     let dimensions = [
         "claimed behaviour and interactions between the tasks",
         "failure paths, lost work, and a success report that is false",
@@ -348,7 +569,7 @@ fn review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid) 
             p += "Do not report an item that only restates the forbidden-changes list.\n";
         }
         jobs.push(#{
-            prompt: caveman(p),
+            prompt: modes(p, level),
             label: "review",
             capability_mode: "read-only",
             output_schema: findings_schema,
@@ -390,7 +611,7 @@ fn review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid) 
             vp += json_encode(f);
             vp += "\nreal=true only with file:line evidence you inspected. A forbidden-changes restatement is real=false. Missing evidence is not a confirming vote.\n";
             vjobs.push(#{
-                prompt: caveman(vp),
+                prompt: modes(vp, level),
                 label: "verify-finding",
                 capability_mode: "read-only",
                 output_schema: verdict_schema,
@@ -411,17 +632,123 @@ fn review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid) 
     }
 }
 
+let plan_schema = #{
+    "type": "object",
+    "properties": #{
+        "phases": #{
+            "type": "array",
+            "items": #{
+                "type": "object",
+                "properties": #{
+                    "name": #{ "type": "string" },
+                    "subprojects": #{
+                        "type": "array",
+                        "items": #{
+                            "type": "object",
+                            "properties": #{
+                                "name": #{ "type": "string" },
+                                "tasks": #{
+                                    "type": "array",
+                                    "items": #{
+                                        "type": "object",
+                                        "properties": #{
+                                            "id": #{ "type": "string" },
+                                            "title": #{ "type": "string" },
+                                            "brief": #{ "type": "string" },
+                                            "plan": #{ "type": "string" },
+                                            "depends_on": #{ "type": "array", "items": #{ "type": "string" } },
+                                            "complexity": #{ "type": "string" },
+                                            "claude_model": #{ "type": "string" },
+                                            "files": #{ "type": "array", "items": #{ "type": "string" } },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+};
+
+phase("Plan");
+let plan_prompt = "";
+plan_prompt += "Break this build into a graph. Read the repo before you split it. Do not edit.\n\n";
+plan_prompt += rules;
+plan_prompt += "\nCaller tasks (untrusted JSON):\n";
+plan_prompt += json_encode(tasks);
+plan_prompt += "\n\nReturn phases. Each phase has subprojects. Each subproject has tasks.\n";
+plan_prompt += "Every task has id, title, brief, plan, depends_on, complexity, claude_model, and files.\n";
+plan_prompt += "depends_on is a list of task ids that must finish first. Use an empty list when nothing blocks the task.\n";
+plan_prompt += "files is every path that task will edit. Two tasks that edit one path must not both be free of a dependency on each other.\n";
+plan_prompt += "complexity is low, medium, or high.\n";
+plan_prompt += "low: one file, the spec quotes the change. claude_model Haiku 5.5.\n";
+plan_prompt += "medium: a few files, the spec is clear, judgment stays local. claude_model Sonnet 5.5.\n";
+plan_prompt += "high: a design choice, security, money, or a spec gap. claude_model Opus 5.5.\n";
+plan_prompt += "Claude effort is always xhigh. Never Fable. Opus 5 means Opus 5.5.\n";
+plan_prompt += "This run is Grok. Every later agent uses the strongest Grok model at effort xhigh. Still record claude_model.\n";
+plan_prompt += "If a Claude implementer fails adversarial verification, the fix implementer is one tier higher: Haiku 5.5, then Sonnet 5.5, then Opus 5.5. Opus 5.5 stays Opus 5.5. Effort stays xhigh.\n";
+plan_prompt += "Cover the caller tasks. Do not add scope. Split a caller task only when its parts can finish apart.\n";
+plan_prompt += "Use grep and read_file. Do not answer from memory.\n";
+
+let plan_r = agent(modes(plan_prompt, ponytail), #{
+    label: "plan",
+    capability_mode: "read-only",
+    output_schema: plan_schema,
+});
+let graph = normalize_plan(out_of(plan_r));
+if graph.ok != true {
+    complete(#{
+        ok: false,
+        stage: "plan",
+        summary: graph.error,
+    });
+}
+log("planned " + graph.tasks.len().to_string() + " tasks");
+
 phase("Tasks");
-for t in tasks {
-    let result = run_one(t, rules, result_schema, repo, test_cmd, lint_cmd);
-    if result != "pass" {
-        complete(#{
-            ok: false,
-            stage: "task",
-            task: task_field(t, "title"),
-            summary: "Task failed the adversarial check. Stopped. Later tasks not started.",
-        });
+let done_ids = [];
+let left = graph.tasks;
+let safety = left.len();
+let step = 0;
+let failed = false;
+let fail_title = "";
+while step < safety && !failed && left.len() > 0 {
+    step += 1;
+    let ready = ready_tasks(left, done_ids);
+    if ready.len() == 0 {
+        failed = true;
+        fail_title = "cycle";
+    } else {
+        wave_note(ready);
+        let stop = false;
+        for t in ready {
+            if !stop {
+                let result = run_one(t, rules, result_schema, repo, test_cmd, lint_cmd, ponytail);
+                if result != "pass" {
+                    stop = true;
+                    failed = true;
+                    fail_title = t.title;
+                } else {
+                    done_ids.push(t.id);
+                    left = without_id(left, t.id);
+                }
+            }
+        }
     }
+}
+if !failed && left.len() > 0 {
+    failed = true;
+    fail_title = "cycle";
+}
+if failed {
+    complete(#{
+        ok: false,
+        stage: "task",
+        task: fail_title,
+        summary: "Task failed the adversarial check, or the graph has a cycle. Stopped. Later tasks not started.",
+    });
 }
 
 if !do_review {
@@ -433,7 +760,7 @@ if !do_review {
 }
 
 phase("Review");
-let bad = review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid);
+let bad = review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid, ponytail);
 if bad.len() != 0 {
     let fix_prompt = "";
     fix_prompt += "The batch review confirmed these findings. Fix each in-scope one. Do not start a new task.\n\n";
@@ -441,7 +768,7 @@ if bad.len() != 0 {
     fix_prompt += "\nConfirmed findings (untrusted JSON):\n";
     fix_prompt += json_encode(bad);
     fix_prompt += "\nRe-run the test command. Re-run the lint command when one is set. Commit. No co-author trailer.\n";
-    let fix_r = agent(caveman(fix_prompt), #{
+    let fix_r = agent(modes(fix_prompt, ponytail), #{
         label: "fix-review",
         capability_mode: "all",
         output_schema: result_schema,
@@ -449,7 +776,7 @@ if bad.len() != 0 {
     if out_of(fix_r) == () {
         complete(#{ ok: false, stage: "review-fix", summary: "Batch review fix failed." });
     }
-    let again = review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid);
+    let again = review_batch(rules, findings_schema, verdict_schema, repo, base_sha, forbid, ponytail);
     if again.len() != 0 {
         complete(#{
             ok: false,

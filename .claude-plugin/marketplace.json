@@ -7,7 +7,7 @@
       "name": "agent-shenanigans",
       "source": "./",
       "version": "0.1.0",
-      "description": "Debate, parallel-orchestrate, code-cleanup, skill-postmortem, check-in, session-learnings, compound + /init.",
+      "description": "Debate, code-cleanup, skill-postmortem, check-in, session-learnings, compound + /init.",
       "author": { "name": "pipXBT" }
     }
   ]

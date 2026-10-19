@@ -39,7 +39,7 @@ ln -s ~/code/claude-tings/skill-postmortem ~/.claude/skills/skill-postmortem
 Inside any Claude Code session:
 
 ```
-> Run skill-postmortem on parallel-orchestrate.
+> Run skill-postmortem on code-cleanup.
 ```
 
 or

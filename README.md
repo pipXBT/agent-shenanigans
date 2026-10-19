@@ -1,7 +1,7 @@
 # agent-shenanigans
 
 A personal [Claude Code](https://claude.com/claude-code) **plugin** — my workflow for
-non-trivial work: debate a plan, orchestrate the build, clean up, map the codebase, and
+non-trivial work: debate a plan, build, clean up, map the codebase, and
 capture what was learned.
 
 > **New here?** [`WORKFLOW.md`](./WORKFLOW.md) shows how these skills fit together into
@@ -24,16 +24,15 @@ pipeline you'll also want the two referenced plugins (below).
 | Skill | What it does |
 |-------|--------------|
 | [debate](./skills/debate/) | Multi-AI plan review before writing code — a Grok + ChatGPT + Claude reviewer panel runs in parallel, surfaces hidden assumptions and failure modes, debates contradictions, and returns an `APPROVED`/`REVISE` verdict with SHA-verified plans. |
-| [parallel-orchestrate](./skills/parallel-orchestrate/) | Decompose a design doc into one feature per agent, then fan out one agent per feature into its own git worktree + branch, each inheriting the orchestrator's recon as live context. |
 | [code-cleanup](./skills/code-cleanup/) | Deep, systematic cleanup — nine concern-scoped forks (dedup, dead code, weak types, dead paths, AI slop, …), each in its own worktree in edit mode, reconciled with a real 3-way merge. Dry-run by default. |
 | [skill-postmortem](./skills/skill-postmortem/) | Review a skill against the sessions where it actually fired; categorize friction, confidence-rank, and propose evidence-backed edits — you approve each before it lands. |
 | [check-in](./skills/check-in/) | Context-verified completion gate — a 3-judge Haiku panel (Literalist / Verifier / Skeptic) votes on whether a goal is *actually* met, checking a command + repo state, not just the transcript. |
 | [session-learnings](./skills/session-learnings/) | Fold non-obvious commands, corrections, and gotchas into the project's `CLAUDE.md`. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* |
 | [compound](./skills/compound/) | After a hard-won fix, write root cause + solution into project memory for future sessions to auto-load. *Vendored verbatim from [STRML/cc-skills](https://github.com/STRML/cc-skills) (MIT).* |
 
-> `debate` and `code-cleanup` also ship dormant Grok-native ports (`SKILL.grok.md`) from
-> when this was a dual-CLI repo. Claude Code plugins are Claude-only, so the plugin does
-> not wire them up — they remain in the source for manual Grok use.
+> One `SKILL.md` per skill. Claude Code and Grok Build both load that file. A **Host**
+> section names the spawn or path that differs. `cc-fork` stays Claude-only. The Grok
+> debate panel and the Grok cleanup spawn live in the same files.
 
 ## Command
 
@@ -59,7 +58,7 @@ That symlinks each workflow into `~/.grok/workflows/`. Re-run it after
 
 | Workflow | What it does |
 |----------|----------------|
-| [adversarial-verification](./grok/workflows/adversarial-verification.rhai) | One task at a time: implement, skeptic, teeth, then test and lint gates, with one fix round. After the last task, three reviewers and one skeptic per finding. |
+| [adversarial-verification](./grok/workflows/adversarial-verification.rhai) | Plan the build into phases, subprojects, and dependent tasks, then implement one task at a time: skeptic, teeth, then test and lint gates, with one fix round. After the last task, three reviewers and one skeptic per finding. |
 
 Run it from Grok with `/adversarial-verification` or
 `/workflow adversarial-verification`. It pauses until you pass an object:
@@ -67,10 +66,10 @@ Run it from Grok with `/adversarial-verification` or
 - `repo` — absolute path the agents `cd` into
 - `test_cmd` — the gate command
 - `tasks` — `[{title, brief, plan}]`, or a single `title` plus `brief`
-- Optional: `lint_cmd`, `branch`, `rules`, `forbid`, `base_sha`, `review` (default true)
+- Optional: `lint_cmd`, `branch`, `rules`, `forbid`, `base_sha`, `review` (default true), `ponytail` (`full` or `ultra`, default `full`)
 
 It will not commit to `main`, push, stash, or add a `Co-Authored-By` trailer.
-A second failure on the same task stops the run.
+A second failure on the same task stops the run. On Claude, that one fix starts a new implementer one tier higher: Haiku 5.5, then Sonnet 5.5, then Opus 5.5. Opus 5.5 stays Opus 5.5. Effort stays xhigh. Grok is already the strongest model, so the Grok fix resumes the same agent.
 
 ## Referenced plugins
 

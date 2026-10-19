@@ -1,7 +1,8 @@
 # Debate — Claude Code Workflow engine port
 
-A third engine for the debate panel, alongside the acpx engine (`/debate:all`,
-cc-debate plugin) and the Grok Build port (`SKILL.grok.md`): run the reviewer
+Claude Code only. A second engine for the debate panel, alongside the acpx
+engine (`/debate:all`, cc-debate plugin). The Grok Build panel is the Host
+section in `SKILL.md`. Run the reviewer
 panel on Claude Code's **Workflow tool** — no external CLIs, no acpx, no
 subprocess PATH. Use it when acpx is broken or unavailable in the environment
 (see "Engine selection" in SKILL.md), or whenever you want schema-enforced
