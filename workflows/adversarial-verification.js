@@ -381,12 +381,14 @@ async function attempt(t, B, state, pre, failure, r,
       check(get(TR, 'TR', 'head', 'string') === H, 'TR.head: the teeth revert did not run on HEAD')
       check(Number.isInteger(TT?.test_exit) && TT.test_exit !== 0,
         `TT.test_exit: ${TT?.test_exit}, the tests do not fail without the change`)
-    } else if (t.kind === 'docs') {
-      const bad = changed.find(p => !isDocs(p) || listed(p, t.tests) || matches(p, args.rules.test_globs))
-      check(!bad, `S2.name_status: ${bad} is not a documentation path`)
     }
   }
 
+  // Step 5: the docs scope check runs at both levels, before the tests.
+  if (t.kind === 'docs') {
+    const bad = changed.find(p => !isDocs(p) || listed(p, t.tests) || matches(p, args.rules.test_globs))
+    check(!bad, `S2.name_status: ${bad} is not a documentation path`)
+  }
   const G1 = await call('test', testPrompt())
   check(G1?.test_exit === 0, `G1.test_exit: ${G1?.test_exit}, the tests fail`)
   if (args.lint_cmd) check(G1.lint_exit === 0, `G1.lint_exit: ${G1.lint_exit}, lint fails`)

@@ -32,8 +32,8 @@ runs `workflows/adversarial-verification.rhai`.
 5. **Show the tasks.** A table of `id`, `title`, `kind`, `kind_source` (`marker` or `derived`), and `complexity`
    (`null` shows as "plan agent decides"). Say that `superpowers:writing-plans` does not write the optional
    `**Kind:**` and `**Complexity:**` marker lines, so every `derived` kind came from the task's paths and the
-   owner can add markers and rerun if one is wrong. At `lite` the kind changes nothing: it only picks the
-   skeptic question and the teeth check, which run at `--full`.
+   owner can add markers and rerun if one is wrong. At `lite` the kind only picks the docs-only scope check
+   in the gate; the skeptic question and the teeth check it also picks run at `--full`.
 6. **State the cost.** Lite: about three agents per task (implement, test gate, receipt) and no review:
    `3 x <tasks>`, more with retries. Full: about seven agents per task, plus three reviewers and one
    verifier per finding: `7 x <tasks> + 3` before findings, more with retries. Wait for the owner to say go.

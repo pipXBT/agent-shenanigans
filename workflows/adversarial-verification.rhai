@@ -583,15 +583,17 @@ fn attempt(t, B, pre, failure) {
             check(field_of(TR, "TR", "head", "string") == H, "TR.head: the teeth revert did not run on HEAD");
             let te = if type_of(TT) == "map" { TT.test_exit } else { () };
             check(type_of(te) == "i64" && te != 0, "TT.test_exit: " + json_encode(te) + ", the tests do not fail without the change");
-        } else if t.kind == "docs" {
-            let bad = "";
-            for p in changed {
-                if bad == "" && (!is_docs(p) || listed(p, t.tests) || matches(p, a.rules.test_globs)) { bad = p; }
-            }
-            check(bad == "", "S2.name_status: " + bad + " is not a documentation path");
         }
     }
 
+    // Step 5: the docs scope check runs at both levels, before the tests.
+    if t.kind == "docs" {
+        let bad = "";
+        for p in changed {
+            if bad == "" && (!is_docs(p) || listed(p, t.tests) || matches(p, a.rules.test_globs)) { bad = p; }
+        }
+        check(bad == "", "S2.name_status: " + bad + " is not a documentation path");
+    }
     let G1 = this.call_agent("test", this.test_prompt());
     let G1 = if type_of(G1) == "map" { G1 } else { #{} };
     check(G1.test_exit == 0, "G1.test_exit: " + json_encode(G1.test_exit) + ", the tests fail");

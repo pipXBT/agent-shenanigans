@@ -199,15 +199,15 @@ trailing newlines removed.
 | Step 2: implement and its checks | yes | yes |
 | Step 3: skeptic | yes | no |
 | Step 4: teeth | by kind | no; every task records `teeth: "skipped:lite"` |
-| Step 5: gate (tests, lint when given, scope in `files` ∪ `tests`, outside `forbid`, branch) | yes | yes |
+| Step 5: gate (docs-only scope for `docs` tasks, tests, lint when given, scope in `files` ∪ `tests`, outside `forbid`, branch) | yes | yes |
 | Step 6: `Task-Id` amend and receipt | yes | yes |
 | Failures: F1–F3 back to `pre`, then the retry rules | yes | yes |
 | Restart from receipts | yes | yes |
 | Review stage (§7) | when `review` is true | no; the run ends at stage `done` after the last task |
 
-At `lite` the kind changes nothing: it only picks the skeptic question and
-the step 4 check. `S2.diff` is not read, so a diff over the size limit does
-not fail the attempt.
+At `lite` the kind only picks the step 5 docs-only check; the skeptic question
+and the step 4 check it would otherwise pick do not run. `S2.diff` is not
+read, so a diff over the size limit does not fail the attempt.
 
 ### Preflight (stage `preflight`)
 
@@ -303,11 +303,13 @@ Fail the attempt unless `skeptic.verdict == "pass"`.
     other than 0.
 - `refactor`: no teeth. Its tests must pass at the gate; step 3 covers any
   test edit.
-- `docs`: no teeth. Fail the attempt unless every path in `changed` is a docs
-  path and none is in `tests` or matches `rules.test_globs`.
+- `docs`: no teeth. Its scope check is in step 5.
 - `test`: no teeth.
 
-**Step 5, gate.** `test` → `G1`. Fail the attempt unless `G1.test_exit == 0`
+**Step 5, gate.** For kind `docs`, first fail the attempt unless every path
+in `changed` is a docs path and none is in `tests` or matches
+`rules.test_globs`; this runs at both levels, before the tests. Then `test` →
+`G1`. Fail the attempt unless `G1.test_exit == 0`
 and, when `lint_cmd` is given, `G1.lint_exit == 0`. Then `snapshot(pre)` →
 `G2`. Fail the attempt unless `G2.head == H`, `G2.branch == B`,
 `G2.branch != G2.default_branch`, `G2` is tracked-clean, every path in
