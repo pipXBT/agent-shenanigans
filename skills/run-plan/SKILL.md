@@ -20,7 +20,9 @@ runs `workflows/adversarial-verification.rhai`.
    - the plan file (absolute path), and the repo it applies to (default: `git rev-parse --show-toplevel`);
    - `test_cmd` (required), `lint_cmd` (optional), `branch` (optional);
    - `rules` = `{high_risk: [glob], test_globs: [glob]}` and `forbid: [glob]`, each defaulting to `[]`;
-   - `level`: `"lite"` by default; `"full"` when the owner passes `--full` or asks for the full pipeline;
+   - `level`: `"lite"` by default; `"full"` when the owner passes `--full`, asks for the full pipeline,
+     or asks for the teeth check or the skeptic in any words (lite runs neither). Always pass `level`
+     explicitly: a launch without it runs lite;
    - `review` (full only; default `true`, `false` when the owner says no review) and `ponytail` (`"full"`, or `"ultra"` when the owner asks).
 2. **Refuse a Fable session.** If this session's model id contains `fable` (any case), stop and say so.
 3. **Grok only.** Refuse unless the session effort is `xhigh` (confirm it; if it cannot be read, refuse).
@@ -36,7 +38,8 @@ runs `workflows/adversarial-verification.rhai`.
    in the gate; the skeptic question and the teeth check it also picks run at `--full`.
 6. **State the cost.** Lite: about three agents per task (implement, test gate, receipt) and no review:
    `3 x <tasks>`, more with retries. Full: about seven agents per task, plus three reviewers and one
-   verifier per finding: `7 x <tasks> + 3` before findings, more with retries. Wait for the owner to say go.
+   verifier per finding: `7 x <tasks> + 3` before findings, more with retries. Name the level in the go
+   question, and say what `lite` skips: no skeptic, no teeth. Wait for the owner to say go.
 7. **Nonce.** `python3 -c "import secrets; print(secrets.token_hex(16))"` gives `run_nonce`. A new one every run.
 8. **Launch** with `args` = `{repo, test_cmd, lint_cmd, plan_path, plan_hash, branch, rules, forbid, level, review, ponytail, run_nonce, tasks}`.
    `plan_hash` and `tasks` come from step 4 unchanged. Leave out `lint_cmd` and `branch` when not given. Never pass `fixture`.
