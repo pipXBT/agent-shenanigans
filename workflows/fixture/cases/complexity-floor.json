@@ -1,0 +1,132 @@
+{
+  "name": "complexity-floor",
+  "args": {
+    "repo": "/fixture/repo",
+    "test_cmd": "make test",
+    "plan_path": "docs/plan.md",
+    "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "rules": {
+      "high_risk": [
+        "contracts/**"
+      ],
+      "test_globs": [
+        "tests/**"
+      ]
+    },
+    "forbid": [
+      ".github/**"
+    ],
+    "review": true,
+    "ponytail": "full",
+    "run_nonce": "fixture-floor",
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Task 1",
+        "files": [
+          "src/a.py",
+          "src/b.py",
+          "src/c.py",
+          "src/d.py"
+        ],
+        "tests": [
+          "tests/test_abcd.py"
+        ],
+        "kind": "code",
+        "kind_source": "derived",
+        "complexity": null
+      }
+    ]
+  },
+  "fixture": {
+    "outputs": {
+      "git": [
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "porcelain": "",
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "state_json": "{\"plan_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \"run_start\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"tasks\": {}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "porcelain": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "state_json": "{\"plan_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \"run_start\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"tasks\": {\"1\": {\"pre\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"receipt\": null}}}"
+        }
+      ],
+      "plan": [
+        {
+          "phases": [
+            {
+              "name": "Phase 1",
+              "subprojects": [
+                {
+                  "name": "Core",
+                  "tasks": [
+                    {
+                      "id": "1",
+                      "depends_on": [],
+                      "complexity": "low",
+                      "brief": "Do task 1."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "implement": [
+        {
+          "summary": "Done.",
+          "issues": []
+        }
+      ]
+    },
+    "kill_after": null
+  },
+  "expect": {
+    "ok": false,
+    "stage": "task",
+    "task": "1",
+    "outcomes": {
+      "1": "fail"
+    },
+    "implement": [
+      "claude-sonnet-5-5"
+    ],
+    "git": [
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "read_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "write_state"
+      },
+      "..."
+    ]
+  }
+}

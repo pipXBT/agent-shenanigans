@@ -1,0 +1,110 @@
+{
+  "name": "cycle-rejected",
+  "args": {
+    "repo": "/fixture/repo",
+    "test_cmd": "make test",
+    "plan_path": "docs/plan.md",
+    "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "rules": {
+      "high_risk": [
+        "contracts/**"
+      ],
+      "test_globs": [
+        "tests/**"
+      ]
+    },
+    "forbid": [
+      ".github/**"
+    ],
+    "review": true,
+    "ponytail": "full",
+    "run_nonce": "fixture-cycle",
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Task 1",
+        "files": [
+          "src/a.py"
+        ],
+        "tests": [
+          "tests/test_a.py"
+        ],
+        "kind": "code",
+        "kind_source": "derived",
+        "complexity": null
+      },
+      {
+        "id": "2",
+        "title": "Task 2",
+        "files": [
+          "src/b.py"
+        ],
+        "tests": [
+          "tests/test_b.py"
+        ],
+        "kind": "code",
+        "kind_source": "derived",
+        "complexity": null
+      }
+    ]
+  },
+  "fixture": {
+    "outputs": {
+      "git": [
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": ""
+        }
+      ],
+      "plan": [
+        {
+          "phases": [
+            {
+              "name": "Phase 1",
+              "subprojects": [
+                {
+                  "name": "Core",
+                  "tasks": [
+                    {
+                      "id": "1",
+                      "depends_on": [
+                        "2"
+                      ],
+                      "complexity": "low",
+                      "brief": "Do task 1."
+                    },
+                    {
+                      "id": "2",
+                      "depends_on": [
+                        "1"
+                      ],
+                      "complexity": "low",
+                      "brief": "Do task 2."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "kill_after": null
+  },
+  "expect": {
+    "ok": false,
+    "stage": "plan",
+    "task": null,
+    "outcomes": {},
+    "git": [
+      {
+        "action": "snapshot",
+        "base": ""
+      }
+    ]
+  }
+}

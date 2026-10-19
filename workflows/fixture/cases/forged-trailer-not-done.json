@@ -1,0 +1,154 @@
+{
+  "name": "forged-trailer-not-done",
+  "args": {
+    "repo": "/fixture/repo",
+    "test_cmd": "make test",
+    "plan_path": "docs/plan.md",
+    "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "rules": {
+      "high_risk": [
+        "contracts/**"
+      ],
+      "test_globs": [
+        "tests/**"
+      ]
+    },
+    "forbid": [
+      ".github/**"
+    ],
+    "review": true,
+    "ponytail": "full",
+    "run_nonce": "fixture-forged-trailer-not-done",
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Task 1",
+        "files": [
+          "src/a.py"
+        ],
+        "tests": [
+          "tests/test_a.py"
+        ],
+        "kind": "code",
+        "kind_source": "derived",
+        "complexity": null
+      }
+    ]
+  },
+  "fixture": {
+    "outputs": {
+      "git": [
+        {
+          "ok": true,
+          "error": "",
+          "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "last_message": "Task 1\n\nTask-Id: 0123456789ab/1"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "last_message": "Task 1\n\nTask-Id: 0123456789ab/1",
+          "state_json": "{\"plan_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \"run_start\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"tasks\": {\"1\": {\"pre\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"receipt\": null}}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "last_message": "Task 1\n\nTask-Id: 0123456789ab/1",
+          "base_is_ancestor": true
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "porcelain": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "state_json": "{\"plan_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \"run_start\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"tasks\": {\"1\": {\"pre\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"receipt\": null}}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "porcelain": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "state_json": "{\"plan_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \"run_start\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"tasks\": {\"1\": {\"pre\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"receipt\": null}}}"
+        }
+      ],
+      "plan": [
+        {
+          "phases": [
+            {
+              "name": "Phase 1",
+              "subprojects": [
+                {
+                  "name": "Core",
+                  "tasks": [
+                    {
+                      "id": "1",
+                      "depends_on": [],
+                      "complexity": "low",
+                      "brief": "Do task 1."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "implement": [
+        {
+          "summary": "Done.",
+          "issues": []
+        }
+      ]
+    },
+    "kill_after": null
+  },
+  "expect": {
+    "ok": false,
+    "stage": "task",
+    "task": "1",
+    "outcomes": {
+      "1": "fail"
+    },
+    "git": [
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "read_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "write_state"
+      },
+      "..."
+    ]
+  }
+}
