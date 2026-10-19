@@ -1,0 +1,430 @@
+{
+  "name": "uncommitted-implement-fails",
+  "args": {
+    "repo": "/fixture/repo",
+    "test_cmd": "make test",
+    "plan_path": "docs/plan.md",
+    "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "rules": {
+      "high_risk": [
+        "contracts/**"
+      ],
+      "test_globs": [
+        "tests/**"
+      ]
+    },
+    "forbid": [
+      ".github/**"
+    ],
+    "review": false,
+    "ponytail": "full",
+    "run_nonce": "fixture-uncommitted-implement-fails",
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Task 1",
+        "kind_source": "derived",
+        "complexity": null,
+        "files": [
+          "src/a.py"
+        ],
+        "tests": [
+          "tests/test_a.py"
+        ],
+        "kind": "code"
+      }
+    ]
+  },
+  "fixture": {
+    "outputs": {
+      "git": [
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":null}}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tree": "ffffffffffffffffffffffffffffffffffffffff",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": " M tests/test_a.py\n?? src/b.py",
+          "untracked": [
+            "src/b.py"
+          ],
+          "name_status": "M\tsrc/a.py",
+          "diff": "diff for M src/a.py",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "?? src/b.py",
+          "untracked": [
+            "src/b.py"
+          ],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "?? src/b.py",
+          "untracked": [
+            "src/b.py"
+          ],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "tree": "9999999999999999999999999999999999999999",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "M\tsrc/a.py\nM\ttests/test_a.py",
+          "diff": "diff for M src/a.py\nM tests/test_a.py",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "tree": "9999999999999999999999999999999999999999",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": " D src/a.py",
+          "untracked": [],
+          "name_status": "M\tsrc/a.py\nM\ttests/test_a.py",
+          "diff": "diff for M src/a.py\nM tests/test_a.py",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "tree": "9999999999999999999999999999999999999999",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "M\tsrc/a.py\nM\ttests/test_a.py",
+          "diff": "diff for M src/a.py\nM tests/test_a.py",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "tree": "9999999999999999999999999999999999999999",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "M\tsrc/a.py\nM\ttests/test_a.py",
+          "diff": "diff for M src/a.py\nM tests/test_a.py",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "tree": "9999999999999999999999999999999999999999",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Task 1 work",
+          "base_is_ancestor": false,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "cccccccccccccccccccccccccccccccccccccccc",
+          "tree": "9999999999999999999999999999999999999999",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Task 1 work\n\nTask-Id: 0123456789ab/1",
+          "base_is_ancestor": true,
+          "state_json": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "cccccccccccccccccccccccccccccccccccccccc",
+          "tree": "9999999999999999999999999999999999999999",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "untracked": [],
+          "name_status": "",
+          "diff": "",
+          "last_message": "Base commit",
+          "base_is_ancestor": false,
+          "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":\"cccccccccccccccccccccccccccccccccccccccc\"}}}"
+        }
+      ],
+      "plan": [
+        {
+          "phases": [
+            {
+              "name": "Phase 1",
+              "subprojects": [
+                {
+                  "name": "Core",
+                  "tasks": [
+                    {
+                      "id": "1",
+                      "depends_on": [],
+                      "complexity": "low",
+                      "brief": "Do task 1 (uncommitted-implement-fails)."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "implement": [
+        {
+          "summary": "Done.",
+          "issues": []
+        },
+        {
+          "summary": "Done.",
+          "issues": []
+        }
+      ],
+      "skeptic": [
+        {
+          "verdict": "pass",
+          "evidence": "Matches the brief."
+        }
+      ],
+      "test": [
+        {
+          "test_exit": 1,
+          "lint_exit": null,
+          "tail": "FAILED"
+        },
+        {
+          "test_exit": 0,
+          "lint_exit": null,
+          "tail": "OK"
+        }
+      ]
+    },
+    "kill_after": null
+  },
+  "expect": {
+    "ok": true,
+    "stage": "done",
+    "task": null,
+    "outcomes": {
+      "1": "pass"
+    },
+    "tasks": {
+      "1": {
+        "attempts": 2,
+        "teeth": "ran",
+        "model": "claude-sonnet-5-5"
+      }
+    },
+    "prompts": [
+      {
+        "label": "implement",
+        "n": 1,
+        "includes": "S2.porcelain"
+      }
+    ],
+    "git": [
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "read_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "write_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "write_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "teeth_restore"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "move_untracked_aside",
+        "since": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "teeth_revert",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "paths": [
+          "src/a.py"
+        ]
+      },
+      {
+        "action": "teeth_restore"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "amend_trailer",
+        "trailer": "Task-Id: 0123456789ab/1"
+      },
+      {
+        "action": "write_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      }
+    ]
+  }
+}

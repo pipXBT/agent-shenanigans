@@ -1,0 +1,190 @@
+{
+  "name": "restart-after-receipt",
+  "args": {
+    "repo": "/fixture/repo",
+    "test_cmd": "make test",
+    "plan_path": "docs/plan.md",
+    "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "rules": {
+      "high_risk": [
+        "contracts/**"
+      ],
+      "test_globs": [
+        "tests/**"
+      ]
+    },
+    "forbid": [
+      ".github/**"
+    ],
+    "review": true,
+    "ponytail": "full",
+    "run_nonce": "fixture-restart-receipt",
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Task 1",
+        "files": [
+          "src/a.py"
+        ],
+        "tests": [
+          "tests/test_a.py"
+        ],
+        "kind": "code",
+        "kind_source": "derived",
+        "complexity": null
+      },
+      {
+        "id": "2",
+        "title": "Task 2",
+        "files": [
+          "src/b.py"
+        ],
+        "tests": [
+          "tests/test_b.py"
+        ],
+        "kind": "code",
+        "kind_source": "derived",
+        "complexity": null
+      }
+    ]
+  },
+  "fixture": {
+    "outputs": {
+      "git": [
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "last_message": "Task 2 wip"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "last_message": "Task 2 wip",
+          "state_json": "{\"plan_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \"run_start\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"tasks\": {\"1\": {\"pre\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"receipt\": \"cccccccccccccccccccccccccccccccccccccccc\"}, \"2\": {\"pre\": \"cccccccccccccccccccccccccccccccccccccccc\", \"receipt\": null}}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "last_message": "Task 2 wip",
+          "base_is_ancestor": true
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "dddddddddddddddddddddddddddddddddddddddd",
+          "branch": "feature",
+          "default_branch": "main",
+          "porcelain": "",
+          "last_message": "Task 2 wip",
+          "base_is_ancestor": true
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "cccccccccccccccccccccccccccccccccccccccc",
+          "porcelain": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "state_json": "{\"plan_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \"run_start\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"tasks\": {\"1\": {\"pre\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"receipt\": \"cccccccccccccccccccccccccccccccccccccccc\"}, \"2\": {\"pre\": \"cccccccccccccccccccccccccccccccccccccccc\", \"receipt\": null}}}"
+        },
+        {
+          "ok": true,
+          "error": "",
+          "head": "cccccccccccccccccccccccccccccccccccccccc",
+          "porcelain": ""
+        },
+        {
+          "ok": true,
+          "error": "",
+          "state_json": "{\"plan_hash\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \"run_start\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"tasks\": {\"1\": {\"pre\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"receipt\": \"cccccccccccccccccccccccccccccccccccccccc\"}, \"2\": {\"pre\": \"cccccccccccccccccccccccccccccccccccccccc\", \"receipt\": null}}}"
+        }
+      ],
+      "plan": [
+        {
+          "phases": [
+            {
+              "name": "Phase 1",
+              "subprojects": [
+                {
+                  "name": "Core",
+                  "tasks": [
+                    {
+                      "id": "1",
+                      "depends_on": [],
+                      "complexity": "low",
+                      "brief": "Do task 1."
+                    },
+                    {
+                      "id": "2",
+                      "depends_on": [
+                        "1"
+                      ],
+                      "complexity": "low",
+                      "brief": "Do task 2."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "implement": [
+        {
+          "summary": "Done.",
+          "issues": []
+        }
+      ]
+    },
+    "kill_after": null
+  },
+  "expect": {
+    "ok": false,
+    "stage": "task",
+    "task": "2",
+    "outcomes": {
+      "1": "done-before",
+      "2": "fail"
+    },
+    "git": [
+      {
+        "action": "snapshot",
+        "base": ""
+      },
+      {
+        "action": "read_state",
+        "plan_hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      {
+        "action": "snapshot",
+        "base": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      {
+        "action": "snapshot",
+        "base": "cccccccccccccccccccccccccccccccccccccccc"
+      },
+      {
+        "action": "reset_keep",
+        "sha": "cccccccccccccccccccccccccccccccccccccccc"
+      },
+      {
+        "action": "write_state"
+      },
+      "..."
+    ]
+  }
+}
