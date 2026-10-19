@@ -30,7 +30,7 @@ class LoadRepoStack(unittest.TestCase):
                 self.assertEqual(bool(p.grok_install), p.grok_state == "enabled")
         mine = next(p for p in s.plugins if p.name == "agent-shenanigans")
         self.assertIn("{repo}", mine.claude_install)
-        self.assertEqual(mine.grok_install, "~/.grok/bin/grok plugin install {repo}")
+        self.assertEqual(mine.grok_install, "~/.grok/bin/grok plugin install {repo} --trust")
         self.assertIn("plugin marketplace remove agent-shenanigans", mine.claude_install)
 
     def test_install_commands_are_optional(self):

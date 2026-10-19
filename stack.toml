@@ -61,7 +61,7 @@ grok_name = "agent-shenanigans"
 claude_state = "enabled"
 grok_state = "enabled"
 claude_install = "claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {repo} && claude plugin install agent-shenanigans@agent-shenanigans"
-grok_install = "~/.grok/bin/grok plugin install {repo}"
+grok_install = "~/.grok/bin/grok plugin install {repo} --trust"
 
 [[plugin]]
 name = "explanatory-output-style"
