@@ -29,8 +29,11 @@ runs `workflows/adversarial-verification.rhai`.
    Refuse when `adversarial-verification.js` exists in `~/.grok/workflows`: that is the daemon route
    (a workflow converted to JS), which does not run the `.rhai` executor. Otherwise treat the route as
    the shell route. If `adversarial-verification.rhai` is missing from `~/.grok/workflows`, stop and tell the owner to run `./doctor --fix`.
-4. **Parse.** Run `python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/run-plan/scripts/parse_plan.py" "<plan_path>"`.
-   It prints `{plan_hash, tasks, errors}` and exits 1 when `errors` is non-empty. Show each error and stop.
+4. **Parse.** Run `python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/run-plan/scripts/parse_plan.py" "<plan_path>"`,
+   adding `--test-glob <glob>` once for each of `rules.test_globs`. It prints `{plan_hash, tasks, errors}` and
+   exits 1 when `errors` is non-empty. Show each error and stop. One error to expect from
+   `superpowers:writing-plans`: it puts a new test file on a `Create:` line, which counts the test as
+   production, so teeth would revert the test along with the fix. Move it to a `Test:` line.
 5. **Show the tasks.** A table of `id`, `title`, `kind`, `kind_source` (`marker` or `derived`), and `complexity`
    (`null` shows as "plan agent decides"). Say that `superpowers:writing-plans` does not write the optional
    `**Kind:**` and `**Complexity:**` marker lines, so every `derived` kind came from the task's paths and the

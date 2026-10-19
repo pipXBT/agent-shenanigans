@@ -25,6 +25,10 @@ class ParsePlanTests(unittest.TestCase):
         self.assertEqual(t.tests, ("t.py",))
         self.assertEqual((t.id, t.title), ("1", "A"))
 
+    def test_a_bare_second_range_is_not_a_directory(self):
+        t = one("- Modify: `src/shield.rs:1000-1030` and `:1105-1120`\n- Test: `t.rs`\n")
+        self.assertEqual(t.files, ("src/shield.rs",))
+
     def test_delete_lines_count_as_files(self):
         t = one("- Delete: `old/x.py`\n- Modify: `a.py:7`\n- Test: `t.py`\n")
         self.assertEqual(t.files, ("old/x.py", "a.py"))
@@ -108,6 +112,19 @@ class ParsePlanTests(unittest.TestCase):
         self.assertEqual(len(errs), 1)
         self.assertIn("duplicate", errs[0])
 
+    def test_validate_flags_a_new_test_on_a_create_line(self):
+        t = one("- Create: `pkg/__tests__/x.test.ts`\n- Modify: `pkg/src/x.ts`\n- Test: `pkg/__tests__/y.test.ts`\n")
+        errs = validate([t], ("**/__tests__/**",))
+        self.assertEqual(len(errs), 1)
+        self.assertIn("pkg/__tests__/x.test.ts", errs[0])
+        self.assertIn("Test: line", errs[0])
+        self.assertEqual(validate([t]), [])  # no globs given: no check
+        self.assertEqual(validate([t], ("scripts/test-*.sh",)), [])
+
+    def test_validate_leaves_create_lines_outside_the_test_globs(self):
+        t = one("- Create: `pkg/src/new.ts`\n- Test: `pkg/__tests__/new.test.ts`\n")
+        self.assertEqual(validate([t], ("**/__tests__/**", "**/tests/**")), [])
+
     def test_plan_hash_is_sha256_hex(self):
         self.assertEqual(
             plan_hash(b"abc"),
@@ -128,15 +145,23 @@ class ParsePlanTests(unittest.TestCase):
 
 
 class CliTests(unittest.TestCase):
-    def run_cli(self, text):
+    def run_cli(self, text, *extra):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "plan.md"
             p.write_text(text)
             r = subprocess.run(
-                [sys.executable, str(SCRIPTS / "parse_plan.py"), str(p)],
+                [sys.executable, str(SCRIPTS / "parse_plan.py"), str(p), *extra],
                 capture_output=True, text=True,
             )
         return r.returncode, json.loads(r.stdout)
+
+    def test_test_glob_reaches_validate_and_created_stays_out_of_tasks(self):
+        text = "### Task 1: A\n- Create: `tests/t_new.py`\n- Modify: `a.py`\n- Test: `tests/t.py`\n"
+        code, out = self.run_cli(text, "--test-glob", "tests/**")
+        self.assertEqual(code, 1)
+        self.assertIn("tests/t_new.py", out["errors"][0])
+        self.assertNotIn("created", out["tasks"][0])
+        self.assertEqual(self.run_cli(text)[0], 0)
 
     def test_ok_plan_exits_zero(self):
         text = "### Task 1: A\n- Create: `a.py`\n- Test: `t.py`\n"

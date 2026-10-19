@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Parse a superpowers:writing-plans file into executor tasks.
 
-Usage: parse_plan.py PLAN   (prints JSON; exit 1 when "errors" is non-empty)
+Usage: parse_plan.py PLAN [--test-glob GLOB]...
+       (prints JSON; exit 1 when "errors" is non-empty; GLOB is one of rules.test_globs)
 """
 import hashlib
 import json
@@ -34,6 +35,24 @@ class PlanTask:
     kind: Literal["code", "refactor", "docs", "test"]
     kind_source: Literal["marker", "derived"]
     complexity: Optional[Literal["low", "medium", "high"]]
+    # Paths from Create: lines, for validate only; main() leaves it out of the executor's tasks.
+    created: tuple[str, ...] = ()
+
+
+def glob_re(pattern: str) -> re.Pattern:
+    """CONTRACT.md glob: `**` is zero or more whole segments, `*` and `?` never cross `/`."""
+    out, i = "", 0
+    while i < len(pattern):
+        if pattern.startswith("**/", i):
+            out, i = out + "(?:[^/]+/)*", i + 3
+        elif pattern.startswith("/**", i) and i + 3 == len(pattern):
+            out, i = out + "(?:/[^/]+)*", i + 3
+        elif pattern.startswith("**", i):
+            out, i = out + ".*", i + 2
+        else:
+            out += {"*": "[^/]*", "?": "[^/]"}.get(pattern[i], re.escape(pattern[i]))
+            i += 1
+    return re.compile(out + r"\Z")
 
 
 def is_docs(path: str) -> bool:
@@ -52,6 +71,8 @@ def derive_kind(files: tuple[str, ...], tests: tuple[str, ...]) -> str:
 def line_paths(rest: str) -> list[str]:
     # The plan's own "(notes ...)" after the paths hold backticked non-paths.
     tokens = [RANGE.sub("", t.strip()) for t in TICKED.findall(rest.split(" (")[0])]
+    # A bare `:105-120` after a path is a second range, not a path; kept, it became the whole directory.
+    tokens = [t for t in tokens if t]
     if not tokens:
         return []
     base = posixpath.dirname(tokens[0])
@@ -61,11 +82,15 @@ def line_paths(rest: str) -> list[str]:
 def build(num: str, title: str, body: list[str]) -> PlanTask:
     files: list[str] = []
     tests: list[str] = []
+    created: list[str] = []
     marked = complexity = None
     for line in body:
         m = PATH_LINE.match(line)
         if m:
-            (tests if m[1] == "Test" else files).extend(line_paths(m[2]))
+            paths = line_paths(m[2])
+            (tests if m[1] == "Test" else files).extend(paths)
+            if m[1] == "Create":
+                created.extend(paths)
         elif (m := KIND.match(line)) and m[1].lower() in KINDS:
             marked = marked or m[1].lower()
         elif (m := COMPLEXITY.match(line)) and m[1].lower() in COMPLEXITIES:
@@ -73,7 +98,7 @@ def build(num: str, title: str, body: list[str]) -> PlanTask:
     f, t = tuple(dict.fromkeys(files)), tuple(dict.fromkeys(tests))
     return PlanTask(
         num, title, f, t, marked or derive_kind(f, t),
-        "marker" if marked else "derived", complexity,
+        "marker" if marked else "derived", complexity, tuple(dict.fromkeys(created)),
     )
 
 
@@ -107,12 +132,20 @@ def parse_plan(text: str) -> list[PlanTask]:
     return tasks
 
 
-def validate(tasks: list[PlanTask]) -> list[str]:
+def validate(tasks: list[PlanTask], test_globs: tuple[str, ...] = ()) -> list[str]:
     errors, seen = [], set()
+    globs = [(g, glob_re(g)) for g in test_globs]
     for t in tasks:
         if t.id in seen:
             errors.append(f"Task {t.id} ({t.title}): duplicate id")
         seen.add(t.id)
+        for p in t.created:
+            g = next((g for g, rx in globs if rx.match(p)), None)
+            if g:
+                errors.append(
+                    f"Task {t.id} ({t.title}): `{p}` matches test glob {g} but is on a Create: line; "
+                    "put it on a Test: line, or teeth reverts the test along with the fix"
+                )
         if t.kind == "code":
             for name, paths in (("files", t.files), ("tests", t.tests)):
                 if not paths:
@@ -128,16 +161,20 @@ def plan_hash(data: bytes) -> str:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 1:
+    globs, rest, it = [], [], iter(argv)
+    for a in it:
+        if a == "--test-glob":
+            globs.append(next(it, ""))
+        else:
+            rest.append(a)
+    if len(rest) != 1 or "" in globs:
         print(__doc__, file=sys.stderr)
         return 2
-    data = open(argv[0], "rb").read()
+    data = open(rest[0], "rb").read()
     tasks = parse_plan(data.decode("utf-8"))
-    errors = validate(tasks)
-    print(json.dumps(
-        {"plan_hash": plan_hash(data), "tasks": [asdict(t) for t in tasks], "errors": errors},
-        indent=2,
-    ))
+    errors = validate(tasks, tuple(globs))
+    out = [{k: v for k, v in asdict(t).items() if k != "created"} for t in tasks]
+    print(json.dumps({"plan_hash": plan_hash(data), "tasks": out, "errors": errors}, indent=2))
     return 1 if errors else 0
 
 
