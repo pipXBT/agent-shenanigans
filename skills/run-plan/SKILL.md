@@ -98,13 +98,15 @@ run a plan in this mode.
 8. **`passed`.** All of these, else false with the reason in `detail`: `tool_calls` is 0; the agent listed no tool
    in item 4; `cwd` is outside the plugin root; `recorded`, when not `null`, equals `requested`.
    Claude also needs `token_seen` and `activation` text from the caveman and ponytail hooks that names
-   `ultracave` and `full` (ponytail's hook line reads `PONYTAIL MODE ACTIVE — level: full`). A line copied from
+   `ultracave` and `full` (the hook lines read `CAVEMAN MODE ACTIVE — mode: ultracave` and
+   `PONYTAIL MODE ACTIVE — level: full`; seen at the first live probe, 2026-10-20). A line copied from
    `rules/modes.md` does not count: it must be hook text. Grok has no hooks; it needs `token_seen` only.
 9. Print the file and one line saying passed or why not.
 
 ### Runbook: Haiku at `xhigh` (once per Claude install)
 
-The executor runs low-complexity tasks on `claude-haiku-5-5` at `xhigh`. This is not yet checked. In the same
+The executor runs low-complexity tasks on `claude-haiku-5-5` at `xhigh`. Checked 2026-10-20: the host accepted it
+and recorded `claude-haiku-5-5` at `xhigh`. Re-check after a Claude Code update that changes models. In the same
 probe session spawn one Workflow `agent()` with `model: "claude-haiku-5-5", effort: "xhigh"` and a trivial prompt.
 If the host rejects that effort, change `CLAUDE_MODELS.low` in `workflows/adversarial-verification.js` to
 `claude-sonnet-5-5` and write here that low-tier tasks run on Sonnet. Update `CONTRACT.md` section 6 and any executor test that names the Haiku model to match.
