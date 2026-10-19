@@ -3,6 +3,7 @@ import hashlib
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
@@ -26,6 +27,7 @@ ECHO = 'printf "%s\\n" "$PROMPT"; echo "VERDICT: APPROVED"'
 CALLS = 'echo call >> "$me.calls"; '
 FAIL_FIRST = CALLS + '[ "$(wc -l < "$me.calls")" -eq 1 ] && exit 1; ' + APPROVE
 HANG = 'sleep 30 & echo $! > "$me.pid"; wait'
+HANG_PIDS = 'sleep 30 & echo $! > "$me.pid"; echo $$ > "$me.seat"; wait'
 PLAN = "Ship the widget.\n"
 
 
@@ -82,6 +84,34 @@ class RunSeatsTest(unittest.TestCase):
 
     def read(self, name):
         return (self.w / name).read_text()
+
+    def assert_gone(self, pid, within=3):
+        deadline = time.monotonic() + within
+        while time.monotonic() < deadline:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.05)
+        self.fail(f"process {pid} still alive after {within}s")
+
+    def interrupt_runner(self, sig):
+        self.write_panel(panel_json(timeout=60))
+        self.fakes(claude=HANG_PIDS)
+        runner = subprocess.Popen([sys.executable, str(REPO / "skills/debate/scripts/run_seats.py"), "run",
+                                   "--panel", str(self.panel), "--work-dir", str(self.w),
+                                   "--plan", str(self.plan), "--seats", "skeptic-opus"])
+        self.addCleanup(runner.kill)
+        seat_file = self.tmp / "claude.seat"
+        deadline = time.monotonic() + 10
+        while not (seat_file.exists() and seat_file.read_text().strip()):
+            self.assertLess(time.monotonic(), deadline, "seat never started")
+            time.sleep(0.05)
+        pids = [int((self.tmp / f"claude.{k}").read_text()) for k in ("seat", "pid")]
+        runner.send_signal(sig)
+        runner.wait(timeout=5)
+        for pid in pids:
+            self.assert_gone(pid)
 
     def test_run_writes_outputs_exit_argv_summary(self):
         self.fakes()
@@ -158,16 +188,13 @@ class RunSeatsTest(unittest.TestCase):
         self.assertEqual(self.read("skeptic-opus-exit.txt"), "124")
         self.assertIsNone(self.summary()["verdicts"]["skeptic-opus"])
         # The fake's child sleep died with its process group.
-        pid = int((self.tmp / "claude.pid").read_text())
-        deadline = time.monotonic() + 2
-        while time.monotonic() < deadline:
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
-                break
-            time.sleep(0.05)
-        else:
-            self.fail(f"child {pid} outlived the timed-out seat")
+        self.assert_gone(int((self.tmp / "claude.pid").read_text()))
+
+    def test_sigterm_to_runner_kills_live_seats(self):
+        self.interrupt_runner(signal.SIGTERM)
+
+    def test_sigint_to_runner_kills_live_seats(self):
+        self.interrupt_runner(signal.SIGINT)
 
     def test_timed_out_seat_with_final_verdict_counts(self):
         self.write_panel(panel_json(timeout=1))

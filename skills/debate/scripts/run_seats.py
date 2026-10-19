@@ -24,10 +24,23 @@ BANNED_TOOL_WORDS = ("write", "edit", "replace", "bash", "terminal", "mcp")
 # ponytail: reads only the first name on a line (the probe asks for one per line).
 TOOL_LINE_RE = re.compile(r"[\s>*•\d.)-]*[`*_]*([A-Za-z][\w.-]*)[`*_]*\s*(?:$|[:,(—–]|-\s)")
 FULL_PANEL = 14
+LIVE: list[subprocess.Popen] = []  # seats currently running, so an interrupt can stop them
 
 
 def finish(head: str) -> str:
     return head + "\n\n" + PLAIN_PROSE_LINE + "\n" + VERDICT_INSTRUCTION
+
+
+def kill_group(p: subprocess.Popen) -> None:
+    # Kill the whole group so a hung CLI's children die with it.
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        os.killpg(p.pid, signal.SIGKILL)
+
+
+def stop_seats(signum, frame) -> None:
+    for p in LIVE:
+        kill_group(p)
+    sys.exit(128 + signum)
 
 
 def write_json(path: Path, data: dict) -> None:
@@ -52,6 +65,7 @@ def run_once(seats: list[Seat], w: Path, prompts: dict[str, str]) -> dict[str, s
                 procs[s] = subprocess.Popen(argv, cwd=w, env=seat_env(s, os.environ), stdout=out, stderr=err,
                                             stdin=stdin if s.host == "opus" else subprocess.DEVNULL,
                                             start_new_session=True)
+                LIVE.append(procs[s])
             except OSError as e:
                 err.write(f"{e}\n".encode())
                 procs[s] = None
@@ -62,11 +76,10 @@ def run_once(seats: list[Seat], w: Path, prompts: dict[str, str]) -> dict[str, s
             try:
                 code = p.wait(max(0, start + s.timeout - time.monotonic()))
             except subprocess.TimeoutExpired:
-                # Kill the whole group so a hung CLI's children die with it.
-                with contextlib.suppress(ProcessLookupError, PermissionError):
-                    os.killpg(p.pid, signal.SIGKILL)
+                kill_group(p)
                 p.wait()
                 timed_out, code = True, 124
+            LIVE.remove(p)
         (w / f"{s.name}-exit.txt").write_text(str(code))
         output = (w / f"{s.name}-output.md").read_bytes().decode(errors="replace")
         verdicts[s.name] = parse_verdict(output, timed_out)
@@ -147,4 +160,6 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(sig, stop_seats)
     sys.exit(main(sys.argv[1:]))
