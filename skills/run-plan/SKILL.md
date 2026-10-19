@@ -120,7 +120,7 @@ run a plan in this mode.
 
 ### Runbook: Haiku at `xhigh` (once per Claude install)
 
-The executor runs low-complexity tasks on `claude-haiku-5-5` at `xhigh`. Checked 2026-10-20: the host accepted it
+The executor runs low-complexity tasks, and every `git` and `test` step, on `claude-haiku-5-5` at `xhigh`. Checked 2026-10-20: the host accepted it
 and recorded `claude-haiku-5-5` at `xhigh`. Re-check after a Claude Code update that changes models. In the same
 probe session spawn one Workflow `agent()` with `model: "claude-haiku-5-5", effort: "xhigh"` and a trivial prompt.
 If the host rejects that effort, change `CLAUDE_MODELS.low` in `workflows/adversarial-verification.js` to

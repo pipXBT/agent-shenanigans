@@ -365,9 +365,11 @@ Then retry with a new `implement` agent, never the old one:
 
 - **Claude.** `CLAUDE_MODELS = {low: "claude-haiku-5-5", medium:
   "claude-sonnet-5-5", high: "claude-opus-5-5"}`;
-  `OTHER_MODEL = "claude-opus-5-5"`. `implement` gets the tier model for the
-  attempt; every other label (`plan`, `git`, `test`, `skeptic`, `review`,
-  `verify-finding`, `fix-review`) gets `OTHER_MODEL`. Every call passes the
+  `OTHER_MODEL = "claude-opus-5-5"`; `RUNNER_MODEL = "claude-haiku-5-5"`.
+  `implement` gets the tier model for the attempt; `git` and `test` get
+  `RUNNER_MODEL` (they run the commands named and return raw output, judging
+  nothing); every other label (`plan`, `skeptic`, `review`, `verify-finding`,
+  `fix-review`) gets `OTHER_MODEL`. Every call passes the
   full model id and `effort: "xhigh"`; no call inherits the session model.
   Read-only labels use agent type `agent-shenanigans:reader` (tools `Read`,
   `Grep`, `Glob`), never `Explore` or `Plan`.
