@@ -86,8 +86,9 @@ Code cleanup runs the same loop, with `/code-cleanup` as the executor.
    parameters wherever the host's spawn API takes them; the modes block is
    pasted into every prompt this repo writes; a probe checks what actually
    arrived. A text file covers what no parameter can set. One exception:
-   debate seats (§6) run with caveman and ponytail off, because their output
-   is parsed and the panel compares reasoning, not style.
+   debate seats (§6) run the caveman and ponytail modes `panel.json` gives
+   their persona, the same on both seats of a persona, so a split comes from
+   reasoning, not style. *(Owner decision 2026-10-20.)*
 4. The implementation workflow above exists for both hosts, behind one
    contract and one scripted fixture that both executors run, and is started
    the same way on each.
@@ -352,8 +353,9 @@ Contents:
   or lower effort, this file wins unless the user says otherwise. It does not
   change the models other tools choose for their own agents.
 - A headless run whose output a program parses (`claude -p`, `grok
-  --prompt-file`, Plamen workers, debate seats) writes normal prose in its
-  required format. This rule wins over every line above for those runs.
+  --prompt-file`, Plamen workers) writes normal prose in its required format.
+  Debate seats instead follow the modes their prompt names *(owner decision
+  2026-10-20)*. This rule wins over every line above for those runs.
 
 What it cannot do: set a model or an effort, or guarantee a mode in an agent.
 §4, §5, and §6 set model and effort where the spawn API takes them, and §4
@@ -602,15 +604,20 @@ Only §4's spawn rule carries over, not its task machine:
   - Opus seats: `claude -p --model claude-opus-5-5 --effort xhigh
     --tools Read,Grep,Glob --strict-mcp-config
     --settings '{"outputStyle":"default"}'`, Claude's nested-session variables
-    unset, `CAVEMAN_DEFAULT_MODE=off`, `PONYTAIL_DEFAULT_MODE=off`.
+    unset, `CAVEMAN_DEFAULT_MODE` and `PONYTAIL_DEFAULT_MODE` set from the seat's `panel.json` modes.
   - Grok seats: `~/.grok/bin/grok --prompt-file … -m grok-4.7
     --reasoning-effort xhigh --tools <read-only list> --no-subagents
     --disable-web-search --no-memory --output-format plain`, with MCP off
     (builder confirms the flag; `--sandbox` read-only if `--tools` cannot
     exclude MCP).
-  - The runner adds one plain-prose line to every seat prompt, so Grok seats
-    (no env switch) match Opus seats. Seats write plain prose on both models,
-    so a persona split comes from reasoning, not output style. *(My call.)*
+  - The runner adds the seat's mode lines to every seat prompt, so Grok seats
+    (no hooks) match Opus seats. Each persona has a caveman and a ponytail
+    mode in `panel.json` (skeptic, bullshit-detector, constraint-engineer,
+    and pager-duty: caveman `ultracave`, ponytail off; architect: `ultracave`
+    and `full`; pragmatist and future-me: `ultracave` and `ultra`). Both seats
+    of a persona share modes, so a split comes from reasoning, not style. With
+    both modes off the line is "Write plain prose." *(Owner decision
+    2026-10-20; replaces "Seats write plain prose".)*
   - Model ids come from the panel file; an id containing `fable` is rejected.
   - The runner depends on neither `~/.claude/debate-scripts` nor any plugin
     cache. Its first successful full dry run writes
