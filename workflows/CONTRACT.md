@@ -144,6 +144,22 @@ spawning, and in fixture mode returns scripted output instead (§8).
   and `lint_exit` are the exit codes; `lint_exit` is `null` without
   `lint_cmd`; `tail` is the last 200 lines of combined output.
 
+### Display labels
+
+What the host shows for an agent (Claude's `/workflows`) is separate from the
+label above, which keys the schema, the model, and the fixture outputs.
+
+- Each task's agents run under `phase(<plan phase name>)`, the name the
+  `plan` agent gave the task's phase (`Tasks` when it gave none). Preflight,
+  Plan, and Review keep their fixed phases.
+- Inside a task an agent shows `<subproject> · task <id> · <step>`, where
+  `step` is the label, except that the teeth `test` call shows `teeth` and
+  the gate `test` call shows `gate`. Task `review-fix` has subproject
+  `review`, and its `fix-review` call shows `implement`.
+- Reviewers show `review · <dimension>` (`behaviour`, `failures`,
+  `invariants`); verifiers show `verify · <file>`. Any other call shows its
+  label.
+
 ### GitReport
 
 `{ok: bool, error: str, head: str, tree: str, branch: str,
@@ -426,7 +442,8 @@ otherwise the run ends at stage `done`.
 
 - With a fixture present the executor never spawns. Each
   `call(label, ...)` returns that label's next output in order and records
-  `{label, model, effort}` with the values `call` would have passed. A label
+  `{label, model, effort}` with the values `call` would have passed (Claude
+  also records the display label as `display`). A label
   with no outputs left returns `null`, which fails closed.
 - Everything else runs unchanged: graph checks, predicates, the tier ladder,
   and the state writes, which are `git` calls like any other.

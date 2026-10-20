@@ -17,8 +17,9 @@ export async function runCase(scriptPath, casePath) {
   // Like the Workflow tool: a thunk that throws resolves to null.
   const parallel = thunks => Promise.all(thunks.map(t => Promise.resolve().then(t).catch(() => null)))
   const budget = { total: null, spent: () => 0, remaining: () => Infinity }
+  const phases = []
   const body = new AsyncFunction('agent', 'parallel', 'phase', 'log', 'args', 'budget', src)
-  const result = await body(agent, parallel, () => {}, () => {}, args, budget)
+  const result = await body(agent, parallel, t => phases.push(t), () => {}, args, budget)
   if (spawned) throw new Error('agent() called in fixture mode')
-  return { result, calls: args.fixture.calls ?? [] }
+  return { result, phases, calls: args.fixture.calls ?? [] }
 }

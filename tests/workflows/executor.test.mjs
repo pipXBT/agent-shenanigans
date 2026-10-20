@@ -60,6 +60,30 @@ for (const file of readdirSync(CASES)) {
   })
 }
 
+// The role stays the fixture key and the calls label; only the /workflows display label changes.
+test('display labels name the subproject, task and step under the plan phase', async () => {
+  const { calls, phases } = await runCase(SCRIPT, join(CASES, 'add-file.json'))
+  assert.deepEqual(phases, ['Preflight', 'Plan', 'Phase 1', 'Review'])  // level full; review: false skips its agents
+  const T = 'Core · task 1 · '
+  assert.deepEqual(calls.map(k => `${k.label}=${k.display}`), [
+    'git=git', 'plan=plan', 'git=git', 'git=git',
+    `git=${T}git`, `git=${T}git`, `implement=${T}implement`, `git=${T}git`, `skeptic=${T}skeptic`,
+    `git=${T}git`, `test=${T}teeth`, `git=${T}git`, `test=${T}gate`,
+    `git=${T}git`, `git=${T}git`, `git=${T}git`, `git=${T}git`, `git=${T}git`,
+  ])
+})
+
+test('display labels in the review stage', async () => {
+  const { calls, phases } = await runCase(SCRIPT, join(CASES, 'review-fix-test-path.json'))
+  assert.deepEqual(phases, ['Preflight', 'Plan', 'Phase 1', 'Review'])
+  const shown = label => calls.filter(k => k.label === label).map(k => k.display)
+  assert.deepEqual(shown('review'), ['review · behaviour', 'review · failures', 'review · invariants'])
+  assert.deepEqual(shown('verify-finding'),
+    ['verify · src/a.py', 'verify · tests/test_a.py', 'verify · src/b.py', 'verify · .github/ci.yml'])
+  assert.deepEqual(shown('fix-review'), ['review · task review-fix · implement'])
+  assert.ok(shown('git').includes('review · task review-fix · git'))
+})
+
 test('modes block equals rules/modes.md without its marker line', () => {
   const body = readFileSync(join(ROOT, 'rules/modes.md'), 'utf8').split('\n').slice(1).join('\n').trim()
   assert.ok(readFileSync(SCRIPT, 'utf8').includes(`const MODES = ${JSON.stringify(body)}`))

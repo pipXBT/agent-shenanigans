@@ -5,7 +5,6 @@ let meta = #{
     phases: [
         #{ title: "Preflight", detail: "args, branch, clean tree" },
         #{ title: "Plan", detail: "dependency graph, complexity, run state" },
-        #{ title: "Tasks", detail: "implement, skeptic, teeth, gate, receipt" },
         #{ title: "Review", detail: "three reviewers, one verifier per finding, one fix" },
     ],
 };
@@ -86,14 +85,18 @@ fn capability(label) {
 fn output_of(r) { if type_of(r) == "map" && r.success == true { r.output } else { () } }
 
 // The one place the host spawns agents. `prompt` is one prompt, or an array of prompts run as
-// one parallel batch (outputs in order, () for a failed slot). Fixture mode returns the label's
-// next scripted output for each prompt instead.
-fn call_agent(label, prompt) {
+// one parallel batch (outputs in order, () for a failed slot). `role` keys the schema, the
+// capability, and the fixture outputs; `shown` is only the label /workflows shows: a string, an
+// array with one per prompt, or () for "<prefix> · <role>" inside a task, else the role.
+// Fixture mode returns the role's next scripted output for each prompt instead.
+fn call_agent(role, prompt, shown) {
+    let label = if this.prefix == () { role } else { this.prefix + " · " + role };
+    if type_of(shown) == "string" { label = shown; }
     let opts = #{
         label: label,
         model: global::GROK_MODEL,
-        capability_mode: capability(label),
-        output_schema: schema_for(label),
+        capability_mode: capability(role),
+        output_schema: schema_for(role),
     };
     if opts.model.to_lower().contains("fable") {
         throw #{ kind: "stop", why: "refused model " + opts.model };
@@ -107,19 +110,20 @@ fn call_agent(label, prompt) {
     let fx = this.args.fixture;
     if fx == () && batch {
         let jobs = [];
-        for p in prompts {
+        for i in 0..prompts.len() {
             let job = opts;
-            job.prompt = head + p;
+            job.prompt = head + prompts[i];
+            if type_of(shown) == "array" { job.label = shown[i]; }
             jobs.push(job);
         }
         for r in parallel(jobs) { outs.push(output_of(r)); }
     } else if fx == () {
         outs.push(output_of(agent(head + prompt, opts)));
     } else {
-        let given = if type_of(fx) == "map" && type_of(fx.outputs) == "map" { fx.outputs[label] } else { () };
+        let given = if type_of(fx) == "map" && type_of(fx.outputs) == "map" { fx.outputs[role] } else { () };
         for p in prompts {
-            let n = this.used[label] ?? 0;
-            this.used[label] = n + 1;
+            let n = this.used[role] ?? 0;
+            this.used[role] = n + 1;
             outs.push(if type_of(given) == "array" && n < given.len() { given[n] } else { () });
         }
     }
@@ -129,7 +133,7 @@ fn call_agent(label, prompt) {
 fn git(action, params) {
     let p = "Repo: " + this.args.repo + " (cd there first)\n\n" + global::GIT_RULES;
     p += "\n\ngit action: " + action + " " + json_encode(params);
-    this.call_agent("git", p)
+    this.call_agent("git", p, ())
 }
 
 fn fail(why) { #{ kind: "fail", why: why } }
@@ -152,6 +156,7 @@ fn field_of(r, name, f, t) {
 
 fn text_of(v) { if type_of(v) == "string" { v } else { "" } }
 fn is_str(v) { type_of(v) == "string" && v != "" }
+fn named(v) { if is_str(v) { v } else { "Tasks" } }
 fn lint_given(a) { is_str(a.lint_cmd) }
 
 fn strs(v) {
@@ -331,14 +336,21 @@ fn plan_prompt() {
 
 // The plan stage: graph checks and complexity in code, then Kahn order by waves.
 fn plan_order() {
-    let plan = this.call_agent("plan", this.plan_prompt());
+    let plan = this.call_agent("plan", this.plan_prompt(), ());
     check(type_of(plan) == "map" && type_of(plan.phases) == "array", "plan.phases: missing");
     let entries = [];
     for ph in plan.phases {
         check(type_of(ph) == "map" && type_of(ph.subprojects) == "array", "plan: a phase has no subprojects list");
         for sp in ph.subprojects {
             check(type_of(sp) == "map" && type_of(sp.tasks) == "array", "plan: a subproject has no tasks list");
-            for e in sp.tasks { entries.push(e); }
+            for e in sp.tasks {
+                let x = e;
+                if type_of(x) == "map" {
+                    x.phase = named(ph.name);
+                    x.subproject = named(sp.name);
+                }
+                entries.push(x);
+            }
         }
     }
     let ids = [];
@@ -366,6 +378,8 @@ fn plan_order() {
         x.depends_on = e.depends_on;
         x.brief = e.brief;
         x.complexity = if floor && c == "low" { "medium" } else { c };
+        x.phase = e.phase;
+        x.subproject = e.subproject;
         tasks.push(x);
     }
     let placed = [];
@@ -547,9 +561,9 @@ fn set_result(k, v) {
 fn attempt(t, B, pre, failure) {
     let a = this.args;
     if t.kind == () {
-        this.call_agent("fix-review", this.fix_prompt(t, pre));
+        this.call_agent("fix-review", this.fix_prompt(t, pre), this.prefix + " · implement");
     } else {
-        this.call_agent("implement", this.implement_prompt(t, pre, failure));
+        this.call_agent("implement", this.implement_prompt(t, pre, failure), ());
     }
     let S2 = this.git("snapshot", #{ base: pre });
     let H = field_of(S2, "S2", "head", "string");
@@ -573,7 +587,7 @@ fn attempt(t, B, pre, failure) {
     // Steps 3 and 4 run at level full only.
     if this.level == "full" {
         check(S2.ok == true, "S2.ok: " + text_of(S2.error));
-        let sk = this.call_agent("skeptic", this.skeptic_prompt(t, name_status, field_of(S2, "S2", "diff", "string"), changed));
+        let sk = this.call_agent("skeptic", this.skeptic_prompt(t, name_status, field_of(S2, "S2", "diff", "string"), changed), ());
         let sk = if type_of(sk) == "map" { sk } else { #{} };
         check(sk.verdict == "pass", "skeptic.verdict: " + json_encode(sk.verdict) + ": " + text_of(sk.evidence));
 
@@ -583,7 +597,7 @@ fn attempt(t, B, pre, failure) {
             check(P.len() > 0, "S2.name_status: no production path in files changed");
             this.set_result("teeth", "ran");
             let TR = this.git("teeth_revert", #{ base: pre, paths: P });
-            let TT = this.call_agent("test", this.test_prompt());
+            let TT = this.call_agent("test", this.test_prompt(), this.prefix + " · teeth");
             let RS = this.git("teeth_restore", #{});
             try {
                 check(field_of(RS, "RS", "head", "string") == H, "RS.head: HEAD moved during teeth");
@@ -606,7 +620,7 @@ fn attempt(t, B, pre, failure) {
         }
         check(bad == "", "S2.name_status: " + bad + " is not a documentation path");
     }
-    let G1 = this.call_agent("test", this.test_prompt());
+    let G1 = this.call_agent("test", this.test_prompt(), this.prefix + " · gate");
     let G1 = if type_of(G1) == "map" { G1 } else { #{} };
     check(G1.test_exit == 0, "G1.test_exit: " + json_encode(G1.test_exit) + ", the tests fail");
     if lint_given(a) { check(G1.lint_exit == 0, "G1.lint_exit: " + json_encode(G1.lint_exit) + ", lint fails"); }
@@ -698,10 +712,11 @@ fn run_task(t, B) {
     this.set_result("outcome", "pass");
 }
 
+// [display name, dimension]
 const DIMENSIONS = [
-    "the behaviour the plan claims, and the interactions between the tasks",
-    "failure paths, lost work, and a success report that is false",
-    "forbidden changes, and broken invariants named in the rules",
+    ["behaviour", "the behaviour the plan claims, and the interactions between the tasks"],
+    ["failures", "failure paths, lost work, and a success report that is false"],
+    ["invariants", "forbidden changes, and broken invariants named in the rules"],
 ];
 
 fn review_prompt(dimension, name_status, diff) {
@@ -743,9 +758,13 @@ fn review_stage(B) {
     let ns = field_of(RV, "RV", "name_status", "string");
     let diff = field_of(RV, "RV", "diff", "string");
     let prompts = [];
-    for d in global::DIMENSIONS { prompts.push(this.review_prompt(d, ns, diff)); }
+    let labels = [];
+    for d in global::DIMENSIONS {
+        prompts.push(this.review_prompt(d[1], ns, diff));
+        labels.push("review · " + d[0]);
+    }
     let findings = [];
-    for rv in this.call_agent("review", prompts) {
+    for rv in this.call_agent("review", prompts, labels) {
         check(type_of(rv) == "map" && type_of(rv.findings) == "array", "review.findings: a reviewer returned no usable report");
         for f in rv.findings {
             check(type_of(f) == "map" && type_of(f.file) == "string" && type_of(f.issue) == "string",
@@ -755,8 +774,12 @@ fn review_stage(B) {
     }
     if findings.len() == 0 { return "review: 0 findings, none confirmed"; }
     let prompts = [];
-    for f in findings { prompts.push(this.verify_prompt(f, ns, diff)); }
-    let verdicts = this.call_agent("verify-finding", prompts);
+    let labels = [];
+    for f in findings {
+        prompts.push(this.verify_prompt(f, ns, diff));
+        labels.push("verify · " + f.file);
+    }
+    let verdicts = this.call_agent("verify-finding", prompts, labels);
     let confirmed = [];
     for i in 0..findings.len() {
         let v = verdicts[i];
@@ -789,6 +812,7 @@ fn review_stage(B) {
     let t = #{ id: "review-fix", title: "Fix confirmed review findings", files: files, tests: tests, kind: (), brief: brief };
 
     this.current = t.id;
+    this.prefix = "review · task " + t.id;
     this.results.push(#{ id: t.id, outcome: "fail", attempts: 0, teeth: "skipped:test", model: global::GROK_MODEL });
     let pre = this.begin(t.id);
     this.set_result("attempts", 1);
@@ -814,16 +838,18 @@ fn run_all() {
     this.stage = "preflight";
     let done = this.run_state();
     this.stage = "task";
-    phase("Tasks");
     for t in order {
         this.current = t.id;
         if done.contains(t.id) {
             this.results.push(#{ id: t.id, outcome: "done-before", attempts: 0, teeth: this.skipped(t.kind), model: "" });
         } else {
+            phase(t.phase);
+            this.prefix = t.subproject + " · task " + t.id;
             this.run_task(t, B);
         }
     }
     this.current = ();
+    this.prefix = ();
     let note = "";
     if this.level == "full" {
         this.stage = "review";
@@ -834,7 +860,7 @@ fn run_all() {
     note
 }
 
-let st = #{ args: args, stage: "preflight", current: (), results: [], used: #{}, state: (), level: () };
+let st = #{ args: args, stage: "preflight", current: (), prefix: (), results: [], used: #{}, state: (), level: () };
 let result = ();
 try {
     let note = st.run_all();

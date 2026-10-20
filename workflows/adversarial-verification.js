@@ -4,7 +4,6 @@ export const meta = {
   phases: [
     { title: 'Preflight', detail: 'args, branch, clean tree' },
     { title: 'Plan', detail: 'dependency graph, complexity, run state' },
-    { title: 'Tasks', detail: 'implement, skeptic, teeth, gate, receipt' },
     { title: 'Review', detail: 'three reviewers, one verifier per finding, one fix' },
   ],
 }
@@ -87,18 +86,23 @@ const results = []
 // "lite" or "full" once checkArgs passes (CONTRACT.md §5, Levels).
 let level = null
 const skipped = kind => level === 'lite' ? 'skipped:lite' : `skipped:${kind}`
+// "<subproject> · task <id>" while a task runs; its agents' /workflows labels start with it.
+let prefix = null
 
-// The only place agent() is called. Fixture mode returns the label's next scripted output.
-async function call(label, prompt, opts = {}) {
-  const o = { label, model: opts.model ?? (RUNNERS.includes(label) ? RUNNER_MODEL : OTHER_MODEL), effort: 'xhigh', schema: SCHEMAS[label] }
-  if (READ_ONLY.includes(label)) o.agentType = 'shenanigans:reader'
+// The only place agent() is called. `role` keys the schema, model, and fixture outputs;
+// opts.label (else "<prefix> · <role>" in a task, else the role) is only what /workflows shows.
+// Fixture mode returns the role's next scripted output.
+async function call(role, prompt, opts = {}) {
+  const label = opts.label ?? (prefix ? `${prefix} · ${role}` : role)
+  const o = { label, model: opts.model ?? (RUNNERS.includes(role) ? RUNNER_MODEL : OTHER_MODEL), effort: 'xhigh', schema: SCHEMAS[role] }
+  if (READ_ONLY.includes(role)) o.agentType = 'shenanigans:reader'
   if (o.model.toLowerCase().includes('fable')) throw new Stop(`refused model ${o.model}`)
   const modes = MODES.replaceAll('`full`', `\`${args.ponytail}\``)
   const full = `${modes}\n\nRun nonce: ${args.run_nonce}\n\n${prompt}`
   if (!args.fixture) return agent(full, o)
   const { schema, ...record } = o
-  ;(args.fixture.calls ??= []).push({ ...record, prompt: full })
-  return args.fixture.outputs?.[label]?.shift() ?? null
+  ;(args.fixture.calls ??= []).push({ ...record, label: role, display: label, prompt: full })
+  return args.fixture.outputs?.[role]?.shift() ?? null
 }
 
 const git = (action, params) =>
@@ -193,11 +197,12 @@ async function planOrder() {
   const plan = await call('plan', planPrompt())
   check(Array.isArray(plan?.phases), 'plan.phases: missing')
   const entries = []
+  const named = v => typeof v === 'string' && v !== '' ? v : 'Tasks'
   for (const ph of plan.phases) {
     check(Array.isArray(ph?.subprojects), 'plan: a phase has no subprojects list')
     for (const sp of ph.subprojects) {
       check(Array.isArray(sp?.tasks), 'plan: a subproject has no tasks list')
-      entries.push(...sp.tasks)
+      entries.push(...sp.tasks.map(e => isObj(e) ? { ...e, phase: named(ph.name), subproject: named(sp.name) } : e))
     }
   }
   const byId = new Map(entries.map(e => [e?.id, e]))
@@ -212,7 +217,8 @@ async function planOrder() {
     const c = t.complexity ?? e.complexity
     check(LEVELS.includes(c), `plan: task ${t.id} complexity ${c} is not low, medium, or high`)
     const floor = t.files.length > 3 || t.files.some(p => args.rules.high_risk.some(g => glob(g).test(p)))
-    return { ...t, depends_on: e.depends_on, brief: e.brief, complexity: floor && c === 'low' ? 'medium' : c }
+    return { ...t, depends_on: e.depends_on, brief: e.brief, complexity: floor && c === 'low' ? 'medium' : c,
+      phase: e.phase, subproject: e.subproject }
   })
   const placed = new Set()
   const order = []
@@ -385,7 +391,7 @@ async function attempt(t, B, state, pre, failure, r,
       check(P.length > 0, 'S2.name_status: no production path in files changed')
       r.teeth = 'ran'
       const TR = await git('teeth_revert', { base: pre, paths: P })
-      const TT = await call('test', testPrompt())
+      const TT = await call('test', testPrompt(), { label: `${prefix} · teeth` })
       const RS = await git('teeth_restore', {})
       await stopping(async () => {
         check(get(RS, 'RS', 'head', 'string') === H, 'RS.head: HEAD moved during teeth')
@@ -403,7 +409,7 @@ async function attempt(t, B, state, pre, failure, r,
     const bad = changed.find(p => !isDocs(p) || listed(p, t.tests) || matches(p, args.rules.test_globs))
     check(!bad, `S2.name_status: ${bad} is not a documentation path`)
   }
-  const G1 = await call('test', testPrompt())
+  const G1 = await call('test', testPrompt(), { label: `${prefix} · gate` })
   check(G1?.test_exit === 0, `G1.test_exit: ${G1?.test_exit}, the tests fail`)
   if (args.lint_cmd) check(G1.lint_exit === 0, `G1.lint_exit: ${G1.lint_exit}, lint fails`)
   const G2 = await git('snapshot', { base: pre })
@@ -487,10 +493,11 @@ async function runTask(t, B, state) {
   throw new Fail(`task ${t.id} failed 3 attempts; last: ${failure}`)
 }
 
+// [display name, dimension]
 const DIMENSIONS = [
-  'the behaviour the plan claims, and the interactions between the tasks',
-  'failure paths, lost work, and a success report that is false',
-  'forbidden changes, and broken invariants named in the rules',
+  ['behaviour', 'the behaviour the plan claims, and the interactions between the tasks'],
+  ['failures', 'failure paths, lost work, and a success report that is false'],
+  ['invariants', 'forbidden changes, and broken invariants named in the rules'],
 ]
 
 const reviewPrompt = (dimension, nameStatus, diff) => `You review the whole branch after a plan ran. Read the repo at ${args.repo} as needed; change nothing.
@@ -535,12 +542,14 @@ async function reviewStage(B, state) {
   const RV = await git('snapshot', { base: state.run_start })
   const nameStatus = get(RV, 'RV', 'name_status', 'string')
   const diff = get(RV, 'RV', 'diff', 'string')
-  const reviews = await parallel(DIMENSIONS.map(d => () => call('review', reviewPrompt(d, nameStatus, diff))))
+  const reviews = await parallel(DIMENSIONS.map(([name, d]) => () =>
+    call('review', reviewPrompt(d, nameStatus, diff), { label: `review · ${name}` })))
   check(reviews.every(rv => Array.isArray(rv?.findings) &&
     rv.findings.every(f => isObj(f) && typeof f.file === 'string' && typeof f.issue === 'string')),
   'review.findings: a reviewer returned no usable report')
   const findings = reviews.flatMap(rv => rv.findings)
-  const verdicts = await parallel(findings.map(f => () => call('verify-finding', verifyPrompt(f, nameStatus, diff))))
+  const verdicts = await parallel(findings.map(f => () =>
+    call('verify-finding', verifyPrompt(f, nameStatus, diff), { label: `verify · ${f.file}` })))
   check(verdicts.every(v => typeof v?.real === 'boolean' && typeof v.evidence === 'string'),
     'verify-finding: a verifier returned no usable report')
   const confirmed = findings.map((f, i) => ({ ...f, evidence: verdicts[i].evidence.trim(), real: verdicts[i].real }))
@@ -556,12 +565,13 @@ async function reviewStage(B, state) {
     brief: confirmed.map(f => `- ${f.file}: ${f.issue} (${f.severity}). Evidence: ${f.evidence}`).join('\n') }
 
   current = t.id
+  prefix = `review · task ${t.id}`
   const r = { id: t.id, outcome: 'fail', attempts: 0, teeth: 'skipped:test', model: OTHER_MODEL }
   results.push(r)
   const pre = await begin(t.id, state)
   r.attempts = 1
   try {
-    await attempt(t, B, state, pre, null, r, () => call('fix-review', fixPrompt(t, pre)))
+    await attempt(t, B, state, pre, null, r, () => call('fix-review', fixPrompt(t, pre), { label: `${prefix} · implement` }))
   } catch (e) {
     if (!(e instanceof Fail) || e instanceof Stop) throw e
     await restore(pre)
@@ -582,16 +592,18 @@ async function run() {
   stage = 'preflight'
   const { state, done } = await runState()
   stage = 'task'
-  phase('Tasks')
   for (const t of order) {
     current = t.id
     if (done.has(t.id)) {
       results.push({ id: t.id, outcome: 'done-before', attempts: 0, teeth: skipped(t.kind), model: '' })
       continue
     }
+    phase(t.phase)
+    prefix = `${t.subproject} · task ${t.id}`
     await runTask(t, B, state)
   }
   current = null
+  prefix = null
   let note = ''
   if (level === 'full') {
     stage = 'review'
