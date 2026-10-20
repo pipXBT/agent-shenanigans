@@ -176,9 +176,22 @@ fn names(xs) {
     if n == 0 { "none" } else { s }
 }
 
+fn count_of(s, c) { s.split(c).len() - 1 }
+
+// A state file the Claude executor wrote is indented, and its copy can come back with each
+// newline as the two characters `\n`. The state holds no backslash, so turning them back is safe.
+// A parse_json error ends the run even inside try, so a copy cut short returns () before it.
+// shortcut: screens only shape and bracket counts; other broken JSON still ends the run.
+fn parse_copy(text) {
+    let t = text;
+    t.replace("\\n", "\n");
+    if !t.starts_with("{") || !t.ends_with("}") || t.contains("\\") || count_of(t, "{") != count_of(t, "}") ||
+        count_of(t, "[") != count_of(t, "]") || count_of(t, "\"") % 2 != 0 { return (); }
+    parse_json(t)
+}
+
 fn same_json(text, value) {
-    let back = ();
-    try { back = parse_json(text); } catch { }
+    let back = parse_copy(text);
     type_of(back) == "map" && json_encode(back) == json_encode(value)
 }
 
@@ -462,8 +475,7 @@ fn run_state() {
         ST = this.git("read_state", #{ plan_hash: this.args.plan_hash });
         text = field_of(ST, "ST", "state_json", "string");
         if text == "" { break; }
-        state = ();
-        try { state = parse_json(text); } catch { }
+        state = parse_copy(text);
         if type_of(state) == "map" { break; }
     }
     let done = [];
