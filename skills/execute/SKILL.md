@@ -39,9 +39,10 @@ runs `workflows/adversarial-verification.rhai`.
    `**Kind:**` and `**Complexity:**` marker lines, so every `derived` kind came from the task's paths and the
    owner can add markers and rerun if one is wrong. At `lite` the kind only picks the docs-only scope check
    in the gate; the skeptic question and the teeth check it also picks run at `--full`.
-6. **State the cost.** Lite: about three agents per task (implement, test gate, receipt) and no review:
-   `3 x <tasks>`, more with retries. Full: about seven agents per task, plus three reviewers and one
-   verifier per finding: `7 x <tasks> + 3` before findings, more with retries. Name the level in the go
+6. **State the cost.** Most agents are `git` runners. Measured 2026-10-20: lite about 10 agents and
+   0.6–0.8M tokens per task, no review: `10 x <tasks>`. Full about 13 agents and 0.7M tokens per task,
+   plus three reviewers and one verifier per finding: `13 x <tasks> + 3` before findings. Retries add
+   one task's worth each. Name the level in the go
    question, and say what `lite` skips: no skeptic, no teeth. Wait for the owner to say go.
 7. **Nonce.** `python3 -c "import secrets; print(secrets.token_hex(16))"` gives `run_nonce`. A new one every run.
 8. **Launch** with `args` = `{repo, test_cmd, lint_cmd, plan_path, plan_hash, branch, rules, forbid, level, review, ponytail, run_nonce, tasks}`.
