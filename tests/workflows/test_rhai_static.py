@@ -59,7 +59,8 @@ class RhaiStaticTest(unittest.TestCase):
     def test_helper_passes_grok_model(self):
         self.assertTrue(re.search(r'(?m)^const GROK_MODEL = "grok-4\.7";$', src()))
         body, _, _ = helper_body()
-        self.assertIn("model: global::GROK_MODEL", body)
+        self.assertNotIn("model: global::GROK_MODEL", body)
+        self.assertIn('global::GROK_MODEL.to_lower().contains("fable")', body)
 
     def test_meta_is_first_statement_and_literal(self):
         lines = [l for l in src().splitlines() if l.strip() and not l.lstrip().startswith("//")]

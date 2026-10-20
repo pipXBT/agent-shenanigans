@@ -388,11 +388,12 @@ Then retry with a new `implement` agent, never the old one:
   full model id and `effort: "xhigh"`; no call inherits the session model.
   Read-only labels use agent type `shenanigans:reader` (tools `Read`,
   `Grep`, `Glob`), never `Explore` or `Plan`.
-- **Grok.** `GROK_MODEL = "grok-4.7"` on every `agent()` and
-  `spawn_subagent` call. Grok's workflow `agent()` takes no effort, so effort
-  `xhigh` is set when the workflow is launched; the entry skill refuses to
-  start unless the session effort is `xhigh` and the route is the shell
-  route.
+- **Grok.** `GROK_MODEL = "grok-4.7"` is the recorded model and the Fable check.
+  `agent()` does not receive `model`. This catalog rejects an explicit model
+  and tells the caller to retry without it. Grok's workflow `agent()` takes no
+  effort, so effort `xhigh` is set when the workflow is launched; the entry
+  skill refuses to start unless the session effort is `xhigh` and the route is
+  the shell route.
 - **No Fable.** `call` rejects a model id containing `fable` before spawning
   and stops the run at the current stage. The entry skill refuses to start in
   a session running on a Fable model.

@@ -94,12 +94,11 @@ fn call_agent(role, prompt, shown) {
     if type_of(shown) == "string" { label = shown; }
     let opts = #{
         label: label,
-        model: global::GROK_MODEL,
         capability_mode: capability(role),
         output_schema: schema_for(role),
     };
-    if opts.model.to_lower().contains("fable") {
-        throw #{ kind: "stop", why: "refused model " + opts.model };
+    if global::GROK_MODEL.to_lower().contains("fable") {
+        throw #{ kind: "stop", why: "refused model " + global::GROK_MODEL };
     }
     let modes = global::MODES;
     modes.replace("`full`", "`" + this.args.ponytail + "`");
