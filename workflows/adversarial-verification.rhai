@@ -82,7 +82,11 @@ fn capability(label) {
     if label == "git" || label == "test" { "execute" } else if label == "implement" || label == "fix-review" { "all" } else { "read-only" }
 }
 
-fn output_of(r) { if type_of(r) == "map" && r.success == true { r.output } else { () } }
+fn output_of(r) {
+    if type_of(r) == "map" && r.success == true { return r.output; }
+    let why = if type_of(r) == "map" && type_of(r.output) == "string" && r.output != "" { r.output } else { "agent returned no report" };
+    throw #{ kind: "stop", why: why };
+}
 
 // The one place the host spawns agents. `prompt` is one prompt, or an array of prompts run as
 // one parallel batch (outputs in order, () for a failed slot). `role` keys the schema, the
