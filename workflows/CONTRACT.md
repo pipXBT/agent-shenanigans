@@ -11,9 +11,7 @@ spec §4, `docs/superpowers/specs/2026-10-19-control-copy-design.md`.
 - **Reports and predicates.** `X.field` names a field of the report an agent
   call returned; each check below names the report and field it reads. A check
   is false when the report is missing, the field is missing, or the field has
-  the wrong type. A git report with `ok: false` fails every check on it, with
-  one exception: a report whose `error` is `diff too large` still serves checks
-  that do not read `diff`.
+  the wrong type. A git report with `ok: false` fails every check on it.
 - **Stop** ends the run with `ok: false` at the stage named. **Fail the
   attempt** goes to [Failures](#failures).
 - **Globs** (`rules.high_risk`, `rules.test_globs`, `forbid`) match the whole
@@ -97,7 +95,9 @@ State file `.git/agent-shenanigans/<plan_hash>.json`:
   to the object written, is repeated once with a new `git` agent before the stop
   §5 names. Both checks compare parsed objects, never bytes. The Claude executor
   writes the state indented (`JSON.stringify(state, null, 2)`); Grok writes it
-  compact.
+  compact. A copy that does not parse is parsed once more with each two-character
+  `\n` turned back into a newline (the state holds no backslash): an indented
+  copy came back that way from two fresh agents in a row.
 - A task is done only when its `receipt` is an ancestor of `HEAD`. A
   `Task-Id` trailer in a commit message never marks a task done.
 - Every run is a fresh run. Claude never passes `resumeFromRunId`; Grok never
@@ -136,7 +136,7 @@ spawning, and in fixture mode returns scripted output instead (§8).
 | `fix-review` | all | `{summary: str}` |
 
 - **read-only**: reads and searches files; no shell, no edits. These agents
-  get the diff in their prompt.
+  get the path of a diff file in their prompt and read it.
 - **execute**: has a shell, runs only the commands its prompt names, returns
   raw output, and judges nothing.
 - **all**: full tools; edits and commits.
@@ -164,7 +164,7 @@ label above, which keys the schema, the model, and the fixture outputs.
 
 `{ok: bool, error: str, head: str, tree: str, branch: str,
 default_branch: str, porcelain: str, untracked: [str], name_status: str,
-diff: str, last_message: str, base_is_ancestor: bool, state_json: str}`
+diff_file: str, last_message: str, base_is_ancestor: bool, state_json: str}`
 
 The `git` prompt contains exactly one line `git action: <name> <params JSON>`,
 for example `git action: reset_keep {"sha": "<sha>"}`. The agent runs that
@@ -182,7 +182,7 @@ trailing newlines removed.
 | `untracked` | `git ls-files --others --exclude-standard`, one entry per line |
 | `last_message` | `git log -1 --format=%B` |
 | `name_status` | `git diff --no-renames --name-status <base> HEAD`; `""` without a base |
-| `diff` | `git diff --no-renames <base>..HEAD`; `""` without a base |
+| `diff_file` | `git diff --no-renames <base>..HEAD` written to `.git/agent-shenanigans/diff/<base>..<head>.patch` (`<head>` is the `head` field, folder made first); the field holds that file's absolute path; `""` without a base |
 | `base_is_ancestor` | `git merge-base --is-ancestor <base> HEAD` exits 0; `false` without a base |
 | `state_json` | set only by `read_state` and `write_state`; `""` otherwise |
 
@@ -190,8 +190,9 @@ trailing newlines removed.
   succeeded. `merge-base --is-ancestor` exiting 1 is a success (`false`), and
   a failing `symbolic-ref` gives `default_branch: ""`. `error` is `""`, or the
   failing command and the first 2000 characters of its stderr.
-- When `diff` would exceed 200 000 characters, the report sets `ok: false`,
-  `error: "diff too large"`, and `diff: ""`, and still fills the other fields.
+- The diff text never goes into the report. A `git` agent copying a long diff
+  into its report came back short or refused (a 77 000-character diff,
+  2026-10-20), so read-only agents read the file instead.
 - `<base>` is the action's `base` parameter; actions without one report no
   base.
 
@@ -229,8 +230,7 @@ trailing newlines removed.
 | Review stage (§7) | when `review` is true | no; the run ends at stage `done` after the last task |
 
 At `lite` the kind only picks the step 5 docs-only check; the skeptic question
-and the step 4 check it would otherwise pick do not run. `S2.diff` is not
-read, so a diff over the size limit does not fail the attempt.
+and the step 4 check it would otherwise pick do not run.
 
 ### Preflight (stage `preflight`)
 
@@ -301,10 +301,9 @@ Fail the attempt unless `S2.head != pre`, `S2.base_is_ancestor`, and
 `S2.porcelain == ""`. `H` := `S2.head`; `T` := `S2.tree`; `changed` := the
 paths in `S2.name_status`.
 
-**Step 3, skeptic (`full` only).** One `skeptic` call with `S2.diff`,
+**Step 3, skeptic (`full` only).** One `skeptic` call with `S2.diff_file`,
 `S2.name_status`, the brief, `files`, `tests`, and `forbid`, plus the
-question for the kind. Fail the attempt without calling it unless `S2.ok`
-(the diff fit).
+question for the kind. Fail the attempt without calling it unless `S2.ok`.
 
 - `code`: does the diff do what the brief says, and nothing outside it?
 - `refactor`: is behaviour unchanged? If a path in `changed` is in `tests` or
@@ -415,7 +414,7 @@ otherwise the run ends at stage `done`.
 
 - `snapshot(run_start)` → `RV`; stop unless `RV.ok`.
 - Three `review` calls in one parallel batch, one per dimension, each given
-  `RV.diff`, `RV.name_status`, `rules`, and `forbid`:
+  `RV.diff_file`, `RV.name_status`, `rules`, and `forbid`:
   1. claimed behaviour and interactions between the tasks;
   2. failure paths, lost work, and a success report that is false;
   3. forbidden changes and broken invariants named in the rules.

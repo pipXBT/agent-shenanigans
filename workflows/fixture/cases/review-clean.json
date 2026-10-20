@@ -49,7 +49,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -64,7 +64,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -79,7 +79,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{}}"
@@ -94,7 +94,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -109,7 +109,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":null}}}"
@@ -124,7 +124,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "M\tsrc/a.py\nM\ttests/test_a.py",
-          "diff": "diff for M src/a.py\nM tests/test_a.py",
+          "diff_file": "/repo/.git/agent-shenanigans/diff/run.patch",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -139,7 +139,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "M\tsrc/a.py\nM\ttests/test_a.py",
-          "diff": "diff for M src/a.py\nM tests/test_a.py",
+          "diff_file": "/repo/.git/agent-shenanigans/diff/run.patch",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -154,7 +154,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Task 1 work",
           "base_is_ancestor": false,
           "state_json": ""
@@ -169,7 +169,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Task 1 work\n\nTask-Id: 0123456789ab/1",
           "base_is_ancestor": true,
           "state_json": ""
@@ -184,7 +184,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":\"cccccccccccccccccccccccccccccccccccccccc\"}}}"
@@ -199,7 +199,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "M\tsrc/a.py\nM\ttests/test_a.py",
-          "diff": "diff for M src/a.py\nM tests/test_a.py",
+          "diff_file": "/repo/.git/agent-shenanigans/diff/run.patch",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -275,7 +275,7 @@
       {
         "label": "review",
         "n": 0,
-        "includes": "diff for M src/a.py\nM tests/test_a.py"
+        "includes": "Diff from the run start: Read the whole diff from /repo/.git/agent-shenanigans/diff/run.patch"
       },
       {
         "label": "review",

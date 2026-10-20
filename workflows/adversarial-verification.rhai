@@ -34,7 +34,7 @@ Report fields:
 - untracked: git ls-files --others --exclude-standard, one entry per line
 - last_message: git log -1 --format=%B
 - name_status: git diff --no-renames --name-status <base> HEAD; "" without a base
-- diff: git diff --no-renames <base>..HEAD; "" without a base. Over 200000 characters: diff "", ok false, error "diff too large", every other field still filled.
+- diff_file: mkdir -p .git/agent-shenanigans/diff, write the output of git diff --no-renames <base>..HEAD to .git/agent-shenanigans/diff/<base>..<head>.patch (<head> is the head field), and report that file's absolute path; "" without a base. Never copy the diff text into the report.
 - base_is_ancestor: true when git merge-base --is-ancestor <base> HEAD exits 0; false without a base
 - state_json: set only by read_state and write_state; "" otherwise
 - ok: true when every action command exited 0 and every field command succeeded. merge-base --is-ancestor exiting 1 is a success (false); a failing symbolic-ref gives default_branch "".
@@ -62,7 +62,7 @@ fn schema_for(label) {
         obj(#{ phases: list(obj(#{ name: s, subprojects: list(obj(#{ name: s, tasks: list(task) })) })) })
     } else if label == "git" {
         obj(#{ ok: b, error: s, head: s, tree: s, branch: s, default_branch: s, porcelain: s,
-            untracked: list(s), name_status: s, diff: s, last_message: s, base_is_ancestor: b, state_json: s })
+            untracked: list(s), name_status: s, diff_file: s, last_message: s, base_is_ancestor: b, state_json: s })
     } else if label == "test" {
         obj(#{ test_exit: #{ "type": "integer" }, lint_exit: #{ "type": ["integer", "null"] }, tail: s })
     } else if label == "implement" {
@@ -142,10 +142,9 @@ fn is_fail(e) { type_of(e) == "map" && e.kind == "fail" }
 // Inside a stopping block a failed check stops the run (CONTRACT.md section 5, Failures).
 fn as_stop(e) { if is_fail(e) { #{ kind: "stop", why: e.why } } else { e } }
 
-// One field of a git report. A missing report, ok: false (except "diff too large" for
-// fields other than diff), a missing field, or a wrong type fails the check.
+// One field of a git report. A missing report, ok: false, a missing field, or a wrong type fails the check.
 fn field_of(r, name, f, t) {
-    let usable = type_of(r) == "map" && (r.ok == true || (r.ok == false && r.error == "diff too large" && f != "diff"));
+    let usable = type_of(r) == "map" && r.ok == true;
     let v = if usable { r[f] } else { () };
     if type_of(v) != t {
         let why = if usable { "missing or wrong type" } else { "report missing or not ok" };
@@ -526,7 +525,13 @@ fn test_prompt() {
     p
 }
 
-fn skeptic_prompt(t, name_status, diff, changed) {
+// Readers get the diff as a file: a git agent copying a long diff into its report came back
+// short or refused (77 000 characters, 2026-10-20).
+fn diff_line(file) {
+    "Read the whole diff from " + file + " with read_file (in parts when it is long)."
+}
+
+fn skeptic_prompt(t, name_status, diff_file, changed) {
     let a = this.args;
     let q = "Does the diff do what the brief says, and nothing outside it?";
     if t.kind == "refactor" {
@@ -544,7 +549,7 @@ fn skeptic_prompt(t, name_status, diff, changed) {
     let p = "You are the skeptic for one task of a plan. Read the repo at " + a.repo + " as needed; change nothing.\n";
     p += "Task " + t.id + ": " + t.title + " (kind " + t.kind + ")\n";
     p += "Files: " + names(t.files) + "\nTests: " + names(t.tests) + "\nForbidden paths: " + names(a.forbid) + "\n\n";
-    p += "Brief:\n" + t.brief + "\n\nChanged paths (git diff --name-status):\n" + name_status + "\n\nDiff:\n" + diff;
+    p += "Brief:\n" + t.brief + "\n\nChanged paths (git diff --name-status):\n" + name_status + "\n\nDiff: " + diff_line(diff_file);
     p += "\n\nQuestion: " + q + "\n";
     p += "Fail closed: return verdict \"pass\" only when the answer is clearly yes, else \"fail\". ";
     p += "evidence quotes the lines you checked.";
@@ -587,7 +592,7 @@ fn attempt(t, B, pre, failure) {
     // Steps 3 and 4 run at level full only.
     if this.level == "full" {
         check(S2.ok == true, "S2.ok: " + text_of(S2.error));
-        let sk = this.call_agent("skeptic", this.skeptic_prompt(t, name_status, field_of(S2, "S2", "diff", "string"), changed), ());
+        let sk = this.call_agent("skeptic", this.skeptic_prompt(t, name_status, field_of(S2, "S2", "diff_file", "string"), changed), ());
         let sk = if type_of(sk) == "map" { sk } else { #{} };
         check(sk.verdict == "pass", "skeptic.verdict: " + json_encode(sk.verdict) + ": " + text_of(sk.evidence));
 
@@ -719,21 +724,21 @@ const DIMENSIONS = [
     ["invariants", "forbidden changes, and broken invariants named in the rules"],
 ];
 
-fn review_prompt(dimension, name_status, diff) {
+fn review_prompt(dimension, name_status, diff_file) {
     let a = this.args;
     let p = "You review the whole branch after a plan ran. Read the repo at " + a.repo + " as needed; change nothing.\n";
     p += "Dimension: " + dimension + "\nRules: " + json_encode(a.rules) + "\nForbidden paths: " + names(a.forbid) + "\n\n";
-    p += "Changed paths (git diff --name-status):\n" + name_status + "\n\nDiff from the run start:\n" + diff;
+    p += "Changed paths (git diff --name-status):\n" + name_status + "\n\nDiff from the run start: " + diff_line(diff_file);
     p += "\n\nRead the changed files with read_file before answering; do not answer from memory. ";
     p += "Report only real problems in your dimension. Each finding has file (a repo-relative path), issue, and severity. ";
     p += "Return an empty list when there are none.";
     p
 }
 
-fn verify_prompt(f, name_status, diff) {
+fn verify_prompt(f, name_status, diff_file) {
     let p = "A reviewer reported this finding about the branch. Try to prove it wrong. Read the repo at " + this.args.repo + " as needed; change nothing.\n";
     p += "File: " + f.file + "\nIssue: " + f.issue + "\nSeverity: " + text_of(f.severity) + "\n\n";
-    p += "Changed paths (git diff --name-status):\n" + name_status + "\n\nDiff from the run start:\n" + diff;
+    p += "Changed paths (git diff --name-status):\n" + name_status + "\n\nDiff from the run start: " + diff_line(diff_file);
     p += "\n\nReturn real true only when the code confirms the problem, with the evidence (path, lines, what they do). ";
     p += "Otherwise return real false.";
     p
@@ -756,11 +761,11 @@ fn review_stage(B) {
     let a = this.args;
     let RV = this.git("snapshot", #{ base: this.state.run_start });
     let ns = field_of(RV, "RV", "name_status", "string");
-    let diff = field_of(RV, "RV", "diff", "string");
+    let diff_file = field_of(RV, "RV", "diff_file", "string");
     let prompts = [];
     let labels = [];
     for d in global::DIMENSIONS {
-        prompts.push(this.review_prompt(d[1], ns, diff));
+        prompts.push(this.review_prompt(d[1], ns, diff_file));
         labels.push("review · " + d[0]);
     }
     let findings = [];
@@ -776,7 +781,7 @@ fn review_stage(B) {
     let prompts = [];
     let labels = [];
     for f in findings {
-        prompts.push(this.verify_prompt(f, ns, diff));
+        prompts.push(this.verify_prompt(f, ns, diff_file));
         labels.push("verify · " + f.file);
     }
     let verdicts = this.call_agent("verify-finding", prompts, labels);

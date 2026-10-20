@@ -51,7 +51,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -66,7 +66,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -81,7 +81,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{}}"
@@ -96,7 +96,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -111,7 +111,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":null}}}"
@@ -126,7 +126,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "D\tsrc/gone.py\nA\tsrc/new.py\nD\tsrc/old.py\nM\ttests/test_mod.py",
-          "diff": "diff for D src/gone.py\nA src/new.py\nD src/old.py\nM tests/test_mod.py",
+          "diff_file": "diff for D src/gone.py\nA src/new.py\nD src/old.py\nM tests/test_mod.py",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -141,7 +141,7 @@
           "porcelain": " D src/gone.py\n D src/new.py\n D src/old.py",
           "untracked": [],
           "name_status": "D\tsrc/gone.py\nA\tsrc/new.py\nD\tsrc/old.py\nM\ttests/test_mod.py",
-          "diff": "diff for D src/gone.py\nA src/new.py\nD src/old.py\nM tests/test_mod.py",
+          "diff_file": "diff for D src/gone.py\nA src/new.py\nD src/old.py\nM tests/test_mod.py",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -156,7 +156,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "D\tsrc/gone.py\nA\tsrc/new.py\nD\tsrc/old.py\nM\ttests/test_mod.py",
-          "diff": "diff for D src/gone.py\nA src/new.py\nD src/old.py\nM tests/test_mod.py",
+          "diff_file": "diff for D src/gone.py\nA src/new.py\nD src/old.py\nM tests/test_mod.py",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -171,7 +171,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "D\tsrc/gone.py\nA\tsrc/new.py\nD\tsrc/old.py\nM\ttests/test_mod.py",
-          "diff": "diff for D src/gone.py\nA src/new.py\nD src/old.py\nM tests/test_mod.py",
+          "diff_file": "diff for D src/gone.py\nA src/new.py\nD src/old.py\nM tests/test_mod.py",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -186,7 +186,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Task 1 work",
           "base_is_ancestor": false,
           "state_json": ""
@@ -201,7 +201,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Task 1 work\n\nTask-Id: 0123456789ab/1",
           "base_is_ancestor": true,
           "state_json": ""
@@ -216,7 +216,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":\"cccccccccccccccccccccccccccccccccccccccc\"}}}"

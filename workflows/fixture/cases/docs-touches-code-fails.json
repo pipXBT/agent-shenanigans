@@ -50,7 +50,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -65,7 +65,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -80,7 +80,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{}}"
@@ -95,7 +95,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -110,7 +110,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":null}}}"
@@ -125,7 +125,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "M\tREADME.md\nM\ttests/golden/help.txt",
-          "diff": "diff for M README.md\nM tests/golden/help.txt",
+          "diff_file": "diff for M README.md\nM tests/golden/help.txt",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -140,7 +140,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -155,7 +155,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -170,7 +170,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "M\tREADME.md\nM\tsrc/cli.py",
-          "diff": "diff for M README.md\nM src/cli.py",
+          "diff_file": "diff for M README.md\nM src/cli.py",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -185,7 +185,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -200,7 +200,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -215,7 +215,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "M\tREADME.md\nM\tsrc/cli.py",
-          "diff": "diff for M README.md\nM src/cli.py",
+          "diff_file": "diff for M README.md\nM src/cli.py",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -230,7 +230,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -245,7 +245,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""

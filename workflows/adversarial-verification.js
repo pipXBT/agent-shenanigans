@@ -37,7 +37,7 @@ Report fields:
 - untracked: git ls-files --others --exclude-standard, one entry per line
 - last_message: git log -1 --format=%B
 - name_status: git diff --no-renames --name-status <base> HEAD; "" without a base
-- diff: git diff --no-renames <base>..HEAD; "" without a base. Over 200000 characters: diff "", ok false, error "diff too large", every other field still filled.
+- diff_file: mkdir -p .git/agent-shenanigans/diff, write the output of git diff --no-renames <base>..HEAD to .git/agent-shenanigans/diff/<base>..<head>.patch (<head> is the head field), and report that file's absolute path; "" without a base. Never copy the diff text into the report.
 - base_is_ancestor: true when git merge-base --is-ancestor <base> HEAD exits 0; false without a base
 - state_json: set only by read_state and write_state; "" otherwise
 - ok: true when every action command exited 0 and every field command succeeded. merge-base --is-ancestor exiting 1 is a success (false); a failing symbolic-ref gives default_branch "".
@@ -62,7 +62,7 @@ const SCHEMAS = {
   plan: obj({ phases: list(obj({ name: STR, subprojects: list(obj({ name: STR, tasks: list(obj({
     id: STR, depends_on: list(STR), complexity: { type: 'string', enum: LEVELS }, brief: STR })) })) })) }),
   git: obj({ ok: BOOL, error: STR, head: STR, tree: STR, branch: STR, default_branch: STR, porcelain: STR,
-    untracked: list(STR), name_status: STR, diff: STR, last_message: STR, base_is_ancestor: BOOL, state_json: STR }),
+    untracked: list(STR), name_status: STR, diff_file: STR, last_message: STR, base_is_ancestor: BOOL, state_json: STR }),
   test: obj({ test_exit: { type: 'integer' }, lint_exit: { type: ['integer', 'null'] }, tail: STR }),
   implement: obj({ summary: STR, issues: list(STR) }),
   skeptic: obj({ verdict: { type: 'string', enum: ['pass', 'fail'] }, evidence: STR }),
@@ -108,11 +108,9 @@ async function call(role, prompt, opts = {}) {
 const git = (action, params) =>
   call('git', `Repo: ${args.repo} (cd there first)\n\n${GIT_RULES}\n\ngit action: ${action} ${JSON.stringify(params)}`)
 
-// One field of a git report. A missing report, ok: false (except "diff too large" for
-// fields other than diff), a missing field, or a wrong type fails the check.
+// One field of a git report. A missing report, ok: false, a missing field, or a wrong type fails the check.
 function get(r, name, field, type) {
-  const usable = r !== null && typeof r === 'object' &&
-    (r.ok === true || (r.ok === false && r.error === 'diff too large' && field !== 'diff'))
+  const usable = r !== null && typeof r === 'object' && r.ok === true
   const v = usable ? r[field] : undefined
   check(type === 'array' ? Array.isArray(v) : typeof v === type,
     `${name}.${field}: ${usable ? 'missing or wrong type' : 'report missing or not ok'}`)
@@ -232,14 +230,20 @@ async function planOrder() {
   return order
 }
 
+// The indented copy can come back with each newline as the two characters `\n`, twice in a row
+// from fresh agents. The state holds no backslash, so turning them back into newlines is safe.
+function parseCopy(text) {
+  for (const t of [text, text.replace(/\\n/g, '\n')]) {
+    try { return JSON.parse(t) } catch {}
+  }
+}
+
 async function writeState(state) {
   // The git agent copies the file back by hand. One-line JSON ending in `}}}` came back short
   // often enough to stop every lane of a run, so write it indented and give a fresh agent one more try.
   for (let attempt = 0; attempt < 2; attempt++) {
     const W = await git('write_state', { plan_hash: args.plan_hash, json: JSON.stringify(state, null, 2) })
-    const text = get(W, 'W', 'state_json', 'string')
-    let back
-    try { back = JSON.parse(text) } catch {}
+    const back = parseCopy(get(W, 'W', 'state_json', 'string'))
     if (same(back, state)) return
   }
   check(false, 'W.state_json: differs from the state written')
@@ -271,8 +275,7 @@ async function runState() {
     ST = await git('read_state', { plan_hash: args.plan_hash })
     text = get(ST, 'ST', 'state_json', 'string')
     if (text === '') break
-    state = undefined
-    try { state = JSON.parse(text) } catch {}
+    state = parseCopy(text)
     if (isObj(state)) break
   }
   const done = new Set()
@@ -337,7 +340,11 @@ const SKEPTIC_QUESTIONS = {
   test: 'Do the new tests assert real behaviour?',
 }
 
-function skepticPrompt(t, nameStatus, diff, changed) {
+// Readers get the diff as a file: a git agent copying a long diff into its report came back
+// short or refused (77 000 characters, 2026-10-20).
+const diffLine = file => `Read the whole diff from ${file} (in parts with offset and limit when it is long).`
+
+function skepticPrompt(t, nameStatus, diffFile, changed) {
   const testEdits = changed.filter(p => listed(p, t.tests) || matches(p, args.rules.test_globs))
   const extra = t.kind === 'refactor' && testEdits.length
     ? ` It changes test files (${testEdits.join(', ')}): confirm no assertion was removed or weakened.` : ''
@@ -353,8 +360,7 @@ ${t.brief}
 Changed paths (git diff --name-status):
 ${nameStatus}
 
-Diff:
-${diff}
+Diff: ${diffLine(diffFile)}
 
 Question: ${SKEPTIC_QUESTIONS[t.kind]}${extra}
 Return verdict "pass" only when the answer is clearly yes, else "fail", with the evidence.`
@@ -383,7 +389,7 @@ async function attempt(t, B, state, pre, failure, r,
   // Steps 3 and 4 run at level full only.
   if (level === 'full') {
     check(S2.ok === true, `S2.ok: ${S2.error}`)
-    const sk = await call('skeptic', skepticPrompt(t, nameStatus, get(S2, 'S2', 'diff', 'string'), changed))
+    const sk = await call('skeptic', skepticPrompt(t, nameStatus, get(S2, 'S2', 'diff_file', 'string'), changed))
     check(sk?.verdict === 'pass', `skeptic.verdict: ${sk?.verdict ?? 'missing'}: ${sk?.evidence ?? ''}`)
 
     if (t.kind === 'code') {
@@ -500,7 +506,7 @@ const DIMENSIONS = [
   ['invariants', 'forbidden changes, and broken invariants named in the rules'],
 ]
 
-const reviewPrompt = (dimension, nameStatus, diff) => `You review the whole branch after a plan ran. Read the repo at ${args.repo} as needed; change nothing.
+const reviewPrompt = (dimension, nameStatus, diffFile) => `You review the whole branch after a plan ran. Read the repo at ${args.repo} as needed; change nothing.
 Dimension: ${dimension}
 Rules: ${JSON.stringify(args.rules)}
 Forbidden paths: ${args.forbid.join(', ') || 'none'}
@@ -508,12 +514,11 @@ Forbidden paths: ${args.forbid.join(', ') || 'none'}
 Changed paths (git diff --name-status):
 ${nameStatus}
 
-Diff from the run start:
-${diff}
+Diff from the run start: ${diffLine(diffFile)}
 
 Report only real problems in your dimension. Each finding has file (a repo-relative path), issue, and severity. Return an empty list when there are none.`
 
-const verifyPrompt = (f, nameStatus, diff) => `A reviewer reported this finding about the branch. Try to prove it wrong. Read the repo at ${args.repo} as needed; change nothing.
+const verifyPrompt = (f, nameStatus, diffFile) => `A reviewer reported this finding about the branch. Try to prove it wrong. Read the repo at ${args.repo} as needed; change nothing.
 File: ${f.file}
 Issue: ${f.issue}
 Severity: ${f.severity}
@@ -521,8 +526,7 @@ Severity: ${f.severity}
 Changed paths (git diff --name-status):
 ${nameStatus}
 
-Diff from the run start:
-${diff}
+Diff from the run start: ${diffLine(diffFile)}
 
 Return real true only when the code confirms the problem, with the evidence (path, lines, what they do). Otherwise return real false.`
 
@@ -541,15 +545,15 @@ Commit your work and leave the tree clean.`
 async function reviewStage(B, state) {
   const RV = await git('snapshot', { base: state.run_start })
   const nameStatus = get(RV, 'RV', 'name_status', 'string')
-  const diff = get(RV, 'RV', 'diff', 'string')
+  const diffFile = get(RV, 'RV', 'diff_file', 'string')
   const reviews = await parallel(DIMENSIONS.map(([name, d]) => () =>
-    call('review', reviewPrompt(d, nameStatus, diff), { label: `review · ${name}` })))
+    call('review', reviewPrompt(d, nameStatus, diffFile), { label: `review · ${name}` })))
   check(reviews.every(rv => Array.isArray(rv?.findings) &&
     rv.findings.every(f => isObj(f) && typeof f.file === 'string' && typeof f.issue === 'string')),
   'review.findings: a reviewer returned no usable report')
   const findings = reviews.flatMap(rv => rv.findings)
   const verdicts = await parallel(findings.map(f => () =>
-    call('verify-finding', verifyPrompt(f, nameStatus, diff), { label: `verify · ${f.file}` })))
+    call('verify-finding', verifyPrompt(f, nameStatus, diffFile), { label: `verify · ${f.file}` })))
   check(verdicts.every(v => typeof v?.real === 'boolean' && typeof v.evidence === 'string'),
     'verify-finding: a verifier returned no usable report')
   const confirmed = findings.map((f, i) => ({ ...f, evidence: verdicts[i].evidence.trim(), real: verdicts[i].real }))

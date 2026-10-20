@@ -47,7 +47,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -62,7 +62,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -77,7 +77,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{}}"
@@ -92,7 +92,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": ""
@@ -107,7 +107,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":null}}}"
@@ -122,7 +122,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "A\ttests/test_a.py",
-          "diff": "diff for A tests/test_a.py",
+          "diff_file": "diff for A tests/test_a.py",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -137,7 +137,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "A\ttests/test_a.py",
-          "diff": "diff for A tests/test_a.py",
+          "diff_file": "diff for A tests/test_a.py",
           "last_message": "Task 1 work",
           "base_is_ancestor": true,
           "state_json": ""
@@ -152,7 +152,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Task 1 work",
           "base_is_ancestor": false,
           "state_json": ""
@@ -167,7 +167,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Task 1 work\n\nTask-Id: 0123456789ab/1",
           "base_is_ancestor": true,
           "state_json": ""
@@ -182,7 +182,7 @@
           "porcelain": "",
           "untracked": [],
           "name_status": "",
-          "diff": "",
+          "diff_file": "",
           "last_message": "Base commit",
           "base_is_ancestor": false,
           "state_json": "{\"plan_hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"run_start\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"tasks\":{\"1\":{\"pre\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"receipt\":\"cccccccccccccccccccccccccccccccccccccccc\"}}}"
