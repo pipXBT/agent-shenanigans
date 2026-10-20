@@ -3,17 +3,18 @@ export const meta = {
   description: 'Run one debate round: one wrapper agent per seat runs run_seats.py for that seat and returns its verdict.',
   whenToUse: 'Started by the debate skill on Claude Code with {repo, panel, work_dir, plan, seats}, all paths absolute. Run run_seats.py collect on work_dir afterwards.',
   phases: [
-    { title: 'Opus 5.5', detail: 'one agent per Opus seat' },
-    { title: 'Grok 4.7', detail: 'one agent per Grok seat' },
+    { title: 'Opus 5.5 seats', detail: 'one Haiku wrapper per Opus seat; the label names the real reviewer' },
+    { title: 'Grok 4.7 seats', detail: 'one Haiku wrapper per Grok seat; the label names the real reviewer' },
   ],
 }
 
 // Each seat runs as its own sub-run in <work_dir>/<seat>/, started by a thin Haiku wrapper so
 // /workflows shows one agent per seat. The wrappers judge nothing: run_seats.py runs the seat,
 // and `run_seats.py collect` merges the sub-runs into <work_dir>/summary.json afterwards.
-// The script cannot read panel.json, so the skill passes `seats` as [{seat, persona, host}].
+// The script cannot read panel.json, so the skill passes `seats` as [{seat, persona, host, model, effort}].
+// The model column in /workflows shows the wrapper (Haiku); the label carries the seat's real model and effort.
 
-const PHASES = { opus: 'Opus 5.5', grok: 'Grok 4.7' }
+const PHASES = { opus: 'Opus 5.5 seats', grok: 'Grok 4.7 seats' }
 const VERDICTS = ['APPROVED', 'REVISE']
 const SCHEMA = {
   type: 'object',
@@ -30,8 +31,9 @@ const abs = v => typeof v === 'string' && v.startsWith('/')
 const seats = args?.seats
 const ok = ['repo', 'panel', 'work_dir', 'plan'].every(k => abs(args?.[k])) &&
   Array.isArray(seats) && seats.length > 0 && new Set(seats.map(s => s?.seat)).size === seats.length &&
-  seats.every(s => /^[\w-]+$/.test(s?.seat ?? '') && typeof s.persona === 'string' && Object.hasOwn(PHASES, s.host))
-if (!ok) throw new Error('args: need absolute repo, panel, work_dir and plan, and seats: [{seat, persona, host: "opus" | "grok"}], each seat once')
+  seats.every(s => /^[\w-]+$/.test(s?.seat ?? '') && typeof s.persona === 'string' && Object.hasOwn(PHASES, s.host) &&
+    [s.model, s.effort].every(v => typeof v === 'string' && v !== '') && !s.model.includes('fable'))
+if (!ok) throw new Error('args: need absolute repo, panel, work_dir and plan, and seats: [{seat, persona, host: "opus" | "grok", model, effort}], each seat once, no fable model')
 
 // Single-quoted for the shell.
 const q = s => `'${s.replaceAll("'", "'\\''")}'`
@@ -50,7 +52,7 @@ ${cmd}
 }
 
 const replies = await parallel(seats.map(s => () => agent(prompt(s.seat), {
-  label: s.persona, phase: PHASES[s.host], model: 'claude-haiku-5-5', effort: 'xhigh', schema: SCHEMA,
+  label: `${s.persona} · ${s.model} ${s.effort}`, phase: PHASES[s.host], model: 'claude-haiku-5-5', effort: 'xhigh', schema: SCHEMA,
 })))
 // A dead wrapper, or a reply about another seat, is no verdict.
 const verdicts = Object.fromEntries(seats.map((s, i) => {

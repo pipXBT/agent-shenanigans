@@ -10,8 +10,8 @@ const SCRIPT = join(ROOT, 'workflows/debate-round.js')
 const ARGS = {
   repo: '/plugin', panel: '/plugin/skills/debate/panel.json', work_dir: '/d/round-1', plan: '/d/plan.md',
   seats: [
-    { seat: 'skeptic-opus', persona: 'skeptic', host: 'opus' },
-    { seat: 'architect-grok', persona: 'architect', host: 'grok' },
+    { seat: 'skeptic-opus', persona: 'skeptic', host: 'opus', model: 'claude-opus-5-5', effort: 'xhigh' },
+    { seat: 'architect-grok', persona: 'architect', host: 'grok', model: 'grok-4.7', effort: 'xhigh' },
   ],
 }
 const reply = (seat, verdict) => ({ seat, verdict, exit: 0, output_path: `/d/round-1/${seat}/${seat}-output.md` })
@@ -26,12 +26,12 @@ async function run(replies, args = ARGS) {
   return { result, calls }
 }
 
-test('one wrapper per seat, in its model phase, labeled with the persona', async () => {
+test('one wrapper per seat, in its model phase, labeled with the persona and the real reviewer', async () => {
   const { result, calls } = await run({
     'skeptic-opus': reply('skeptic-opus', 'APPROVED'), 'architect-grok': reply('architect-grok', 'REVISE') })
   assert.deepEqual(calls.map(k => [k.phase, k.label, k.model, k.effort, k.agentType]), [
-    ['Opus 5.5', 'skeptic', 'claude-haiku-5-5', 'xhigh', undefined],
-    ['Grok 4.7', 'architect', 'claude-haiku-5-5', 'xhigh', undefined],
+    ['Opus 5.5 seats', 'skeptic · claude-opus-5-5 xhigh', 'claude-haiku-5-5', 'xhigh', undefined],
+    ['Grok 4.7 seats', 'architect · grok-4.7 xhigh', 'claude-haiku-5-5', 'xhigh', undefined],
   ])
   assert.ok(calls[0].prompt.includes("python3 '/plugin/skills/debate/scripts/run_seats.py' run " +
     "--panel '/plugin/skills/debate/panel.json' --work-dir '/d/round-1/skeptic-opus' --plan '/d/plan.md' " +
@@ -47,4 +47,11 @@ test('a dead wrapper or a reply for another seat counts as no verdict', async ()
   assert.deepEqual(result.verdicts, { 'skeptic-opus': null, 'architect-grok': null })
   assert.equal(result.returned, 0)
   await assert.rejects(run({}, { ...ARGS, seats: [] }), /args/)
+})
+
+test('a seat without its reviewer model, or on a fable model, is refused before any agent starts', async () => {
+  for (const bad of [{ model: undefined }, { model: 'claude-fable-5-1' }, { effort: '' }]) {
+    const seats = [{ ...ARGS.seats[0], ...bad }]
+    await assert.rejects(run({}, { ...ARGS, seats }), /args/)
+  }
 })

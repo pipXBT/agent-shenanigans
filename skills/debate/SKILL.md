@@ -43,14 +43,15 @@ Show the user the first 20 lines and `wc -w`.
 A round can take 30 minutes or more, past the foreground shell limit.
 
 **Claude Code:** run the round as the `debate-round` workflow. It shows in `/workflows` with one
-phase per model (`Opus 5.5`, `Grok 4.7`) and one agent per persona. Each agent is a Haiku wrapper
+phase per model (`Opus 5.5 seats`, `Grok 4.7 seats`) and one agent per persona, labeled with the
+seat's real reviewer (e.g. `skeptic · claude-opus-5-5 xhigh`). The model column shows Haiku: each agent is a Haiku wrapper
 that starts one seat's runner with the Bash tool's `run_in_background`, in its own sub-run
 `<work_dir>/<seat>/`, waits for it, and returns the seat's verdict. Every path in `args` is
 absolute: expand `CLAUDE_PLUGIN_ROOT` and `$DEBATE` first. `seats` lists the seats to run with
-each one's persona and host; for the whole panel it is what this prints:
+each one's persona, host, model, and effort; for the whole panel it is what this prints:
 
 ```bash
-python3 -c 'import json, sys; print(json.dumps([{"seat": k, "persona": v["persona"], "host": v["host"]} for k, v in json.load(open(sys.argv[1]))["seats"].items()]))' "${CLAUDE_PLUGIN_ROOT}/skills/debate/panel.json"
+python3 -c 'import json, sys; print(json.dumps([{"seat": k, "persona": v["persona"], "host": v["host"], "model": v["model"], "effort": v["effort"]} for k, v in json.load(open(sys.argv[1]))["seats"].items()]))' "${CLAUDE_PLUGIN_ROOT}/skills/debate/panel.json"
 ```
 
 Then run `Workflow({scriptPath: "${CLAUDE_PLUGIN_ROOT}/workflows/debate-round.js", args})` with
