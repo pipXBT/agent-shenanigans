@@ -42,7 +42,7 @@ for (const file of readdirSync(CASES)) {
     for (const k of calls) {
       assert.ok(/^claude-(haiku|sonnet|opus)-5-5$/.test(k.model), k.label)
       assert.equal(k.effort, 'xhigh')
-      assert.equal(k.agentType, READ_ONLY.includes(k.label) ? 'agent-shenanigans:reader' : undefined)
+      assert.equal(k.agentType, READ_ONLY.includes(k.label) ? 'shenanigans:reader' : undefined)
     }
     if (c.expect.git) {
       const open = c.expect.git.at(-1) === '...'

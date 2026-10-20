@@ -54,14 +54,24 @@ claude_install = "claude plugin install cc-codemaps@cc-codemaps"
 grok_install = "~/.grok/bin/grok plugin install STRML/cc-codemaps"
 
 [[plugin]]
-name = "agent-shenanigans"
+name = "shenanigans"
+source = "pipXBT/agent-shenanigans"
+claude_id = "shenanigans@agent-shenanigans"
+grok_name = "shenanigans"
+claude_state = "enabled"
+grok_state = "enabled"
+claude_install = "claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {repo} && claude plugin install shenanigans@agent-shenanigans"
+grok_install = "~/.grok/bin/grok plugin install {repo} --trust"
+
+# This plugin's name until 2026-10-20. An install still under it is drift, and
+# --fix prints its uninstall ahead of the install under the new name.
+[[plugin]]
+name = "agent-shenanigans-old-name"
 source = "pipXBT/agent-shenanigans"
 claude_id = "agent-shenanigans@agent-shenanigans"
 grok_name = "agent-shenanigans"
-claude_state = "enabled"
-grok_state = "enabled"
-claude_install = "claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {repo} && claude plugin install agent-shenanigans@agent-shenanigans"
-grok_install = "~/.grok/bin/grok plugin install {repo} --trust"
+claude_state = "absent"
+grok_state = "absent"
 
 [[plugin]]
 name = "explanatory-output-style"

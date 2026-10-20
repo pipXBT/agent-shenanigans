@@ -19,11 +19,11 @@ from tests.doctor.test_hosts import git_repo
 REPO = Path(__file__).resolve().parents[2]
 FAKE_SEAT = REPO / "tests/debate/fake_seat"
 HEAD = "a" * 40
-SELF_ID = "agent-shenanigans@agent-shenanigans"
+SELF_ID = "shenanigans@agent-shenanigans"
 
 STACK = Stack(
     plugins=(
-        PluginDecl("agent-shenanigans", "o/a", SELF_ID, "agent-shenanigans", "enabled", "enabled", None),
+        PluginDecl("shenanigans", "o/a", SELF_ID, "shenanigans", "enabled", "enabled", None),
         PluginDecl("ponytail", "o/p", "ponytail@ponytail", "ponytail", "enabled", "enabled", None),
         PluginDecl("old", "o/o", "old@old", None, "absent", None, None),
     ),
@@ -38,7 +38,7 @@ def write(path, text):
 
 def host(name, shas, enabled=True):
     """A host state loading each {plugin: sha}; Claude keys plugins by id, Grok by name."""
-    key = (lambda n: f"{n}@{n}") if name == "claude" else (lambda n: n)
+    key = {p.name: p.claude_id for p in STACK.plugins}.get if name == "claude" else (lambda n: n)
     plugins = {key(n): PluginState(name, key(n), enabled, sha, None, False) for n, sha in shas.items()}
     return HostState(name, plugins, (), ())
 
@@ -75,11 +75,11 @@ class Freshness(unittest.TestCase):
         self.assertEqual(got["grok"].shas, {})
 
     def test_loaded_shas_prefers_claude_and_drops_a_local_install_suffix(self):
-        claude = host("claude", {"agent-shenanigans": HEAD, "ponytail": "p1"})
-        grok = host("grok", {"agent-shenanigans": HEAD + "+0123456789ab", "ponytail": "p1"})
-        self.assertEqual(loaded_shas(STACK, claude, grok), {"agent-shenanigans": HEAD, "ponytail": "p1"})
+        claude = host("claude", {"shenanigans": HEAD, "ponytail": "p1"})
+        grok = host("grok", {"shenanigans": HEAD + "+0123456789ab", "ponytail": "p1"})
+        self.assertEqual(loaded_shas(STACK, claude, grok), {"shenanigans": HEAD, "ponytail": "p1"})
         self.assertEqual(loaded_shas(STACK, claude, host("grok", {"ponytail": "p1"}, enabled=False)),
-                         {"agent-shenanigans": HEAD, "ponytail": "p1"})
+                         {"shenanigans": HEAD, "ponytail": "p1"})
 
 
 class AcceptCase(unittest.TestCase):
@@ -87,7 +87,7 @@ class AcceptCase(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.repo = Path(tmp.name)
-        self.claude_shas = {"agent-shenanigans": HEAD, "ponytail": "p1"}
+        self.claude_shas = {"shenanigans": HEAD, "ponytail": "p1"}
         self.grok_shas = dict(self.claude_shas)
         self.head = HEAD
         self.probes = {
@@ -109,16 +109,16 @@ class AcceptCase(unittest.TestCase):
 
 class Accept(AcceptCase):
     def test_accept_writes_verified_json(self):
-        self.grok_shas["agent-shenanigans"] = HEAD + "+0123456789ab"  # a Local install: same commit, Grok-only hash
+        self.grok_shas["shenanigans"] = HEAD + "+0123456789ab"  # a Local install: same commit, Grok-only hash
         self.assertEqual(self.accept(), [])
         text = (self.repo / "verified.json").read_text()
-        self.assertEqual(json.loads(text), {"agent-shenanigans": HEAD, "ponytail": "p1"})
+        self.assertEqual(json.loads(text), {"shenanigans": HEAD, "ponytail": "p1"})
         self.assertTrue(text.endswith("\n"))
 
     def test_accept_replaces_an_older_verified_json(self):
         write(self.repo / "verified.json", '{"ponytail": "old", "gone": "x"}')
         self.assertEqual(self.accept(), [])
-        self.assertEqual(json.loads((self.repo / "verified.json").read_text()), {"agent-shenanigans": HEAD, "ponytail": "p1"})
+        self.assertEqual(json.loads((self.repo / "verified.json").read_text()), {"shenanigans": HEAD, "ponytail": "p1"})
 
     def test_accept_refuses_when_hosts_differ(self):
         self.grok_shas["ponytail"] = "p2"
@@ -132,7 +132,7 @@ class Accept(AcceptCase):
     def test_accept_refuses_a_plugin_that_is_installed_but_disabled(self):
         why = accept(self.repo, STACK, host("claude", self.claude_shas), host("grok", self.grok_shas, enabled=False),
                      self.probes, self.head)
-        self.assertEqual(why[:2], ["agent-shenanigans is not loaded on grok", "ponytail is not loaded on grok"])
+        self.assertEqual(why[:2], ["shenanigans is not loaded on grok", "ponytail is not loaded on grok"])
 
     def test_accept_refuses_a_sha_that_could_not_be_read(self):
         claude = host("claude", self.claude_shas)
@@ -142,14 +142,14 @@ class Accept(AcceptCase):
 
     def test_accept_refuses_on_checkout_drift(self):
         self.head = "b" * 40
-        why = self.assert_refused("agent-shenanigans on claude", "agent-shenanigans on grok")
+        why = self.assert_refused("shenanigans on claude", "shenanigans on grok")
         self.assertEqual(len(why), 2)
         self.head = None
         self.assert_refused("checkout HEAD is unknown")
 
     def test_checkout_drift_compares_a_local_install_on_its_commit_part(self):
-        self.grok_shas["agent-shenanigans"] = "b" * 40 + "+0123456789ab"
-        self.assert_refused("hosts load different SHAs", "agent-shenanigans on grok")
+        self.grok_shas["shenanigans"] = "b" * 40 + "+0123456789ab"
+        self.assert_refused("hosts load different SHAs", "shenanigans on grok")
 
     def test_accept_refuses_missing_failing_or_stale_probe(self):
         def missing():
@@ -248,10 +248,10 @@ class CliAccept(unittest.TestCase):
         self.head = git_repo(self.repo)
         write(self.repo / "stack.toml", f'''
 [[plugin]]
-name = "agent-shenanigans"
+name = "shenanigans"
 source = "o/a"
 claude_id = "{SELF_ID}"
-grok_name = "agent-shenanigans"
+grok_name = "shenanigans"
 claude_state = "enabled"
 grok_state = "enabled"
 ''')
@@ -259,7 +259,7 @@ grok_state = "enabled"
             {"scope": "user", "installPath": str(root / "cache"), "gitCommitSha": self.head}]}}))
         write(self.home / ".claude/settings.json", json.dumps({"enabledPlugins": {SELF_ID: True}}))
         self.grok = self.home / ".grok/bin/grok"
-        write(self.grok, "#!/bin/sh\ncat <<'EOF'\n  Skills (0)\n\n  Plugins (1)\n  └ agent-shenanigans (user, enabled)  0 skills\nEOF\n")
+        write(self.grok, "#!/bin/sh\ncat <<'EOF'\n  Skills (0)\n\n  Plugins (1)\n  └ shenanigans (user, enabled)  0 skills\nEOF\n")
         self.grok.chmod(0o755)
         self.env = {"HOME": str(self.home), "AGENT_SHENANIGANS_HOME": str(self.home), "GROK_BIN": str(self.grok),
                     "PATH": os.environ["PATH"]}
@@ -281,7 +281,7 @@ grok_state = "enabled"
     def test_shas_prints_the_loaded_shas_as_json_and_changes_nothing(self):
         before = sorted(p for p in self.home.rglob("*"))
         code, out = self.run_cli("--shas")
-        self.assertEqual((code, json.loads(out)), (0, {"agent-shenanigans": self.head}))
+        self.assertEqual((code, json.loads(out)), (0, {"shenanigans": self.head}))
         self.assertEqual(sorted(self.home.rglob("*")), before)
         self.assertFalse((self.repo / "verified.json").exists())
 
@@ -300,30 +300,30 @@ grok_state = "enabled"
         self.assertFalse((self.repo / "verified.json").exists())
 
     def test_accept_then_a_plain_run_is_clean(self):
-        self.probes({"agent-shenanigans": self.head})
+        self.probes({"shenanigans": self.head})
         code, out = self.run_cli("--accept")
         self.assertEqual(code, 0, out)
-        self.assertEqual(json.loads((self.repo / "verified.json").read_text()), {"agent-shenanigans": self.head})
+        self.assertEqual(json.loads((self.repo / "verified.json").read_text()), {"shenanigans": self.head})
         self.assertEqual(self.run_cli(), (0, "doctor: clean\n"))
 
     def test_accept_ignores_a_malformed_verified_json_but_a_plain_run_does_not(self):
-        self.probes({"agent-shenanigans": self.head})
+        self.probes({"shenanigans": self.head})
         write(self.repo / "verified.json", "{nope")
         self.assertEqual(self.run_cli()[0], 2)
         self.assertEqual(self.run_cli("--accept")[0], 0)
         self.assertEqual(self.run_cli(), (0, "doctor: clean\n"))
 
     def test_accept_exits_2_when_a_host_cannot_be_read(self):
-        self.probes({"agent-shenanigans": self.head})
+        self.probes({"shenanigans": self.head})
         self.grok.write_text("#!/bin/sh\nexit 3\n")
         code, out = self.run_cli("--accept")
         self.assertEqual(code, 2)
         self.assertFalse((self.repo / "verified.json").exists())
 
     def test_an_update_after_accept_shows_as_updated_since_verified(self):
-        self.probes({"agent-shenanigans": self.head})
+        self.probes({"shenanigans": self.head})
         self.run_cli("--accept")
-        write(self.repo / "verified.json", json.dumps({"agent-shenanigans": "c" * 40}))
+        write(self.repo / "verified.json", json.dumps({"shenanigans": "c" * 40}))
         code, out = self.run_cli()
         self.assertEqual(code, 1)
         self.assertIn("updated-since-verified", out)

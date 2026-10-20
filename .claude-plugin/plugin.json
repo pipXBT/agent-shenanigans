@@ -1,10 +1,10 @@
 {
-  "name": "agent-shenanigans",
+  "name": "shenanigans",
   "version": "0.2.0",
-  "description": "Debate, run-plan, code-cleanup, check-in and skill-postmortem: one workflow for Claude Code and Grok Build.",
+  "description": "Debate, execute, code-cleanup, check-in and skill-postmortem: one workflow for Claude Code and Grok Build.",
   "author": { "name": "pipXBT", "url": "https://github.com/pipXBT" },
   "homepage": "https://github.com/pipXBT/agent-shenanigans",
   "repository": "https://github.com/pipXBT/agent-shenanigans",
   "license": "MIT",
-  "keywords": ["workflow", "debate", "run-plan", "code-cleanup", "check-in", "skill-postmortem"]
+  "keywords": ["workflow", "debate", "execute", "code-cleanup", "check-in", "skill-postmortem"]
 }

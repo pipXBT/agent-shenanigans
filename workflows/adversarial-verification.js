@@ -91,7 +91,7 @@ const skipped = kind => level === 'lite' ? 'skipped:lite' : `skipped:${kind}`
 // The only place agent() is called. Fixture mode returns the label's next scripted output.
 async function call(label, prompt, opts = {}) {
   const o = { label, model: opts.model ?? (RUNNERS.includes(label) ? RUNNER_MODEL : OTHER_MODEL), effort: 'xhigh', schema: SCHEMAS[label] }
-  if (READ_ONLY.includes(label)) o.agentType = 'agent-shenanigans:reader'
+  if (READ_ONLY.includes(label)) o.agentType = 'shenanigans:reader'
   if (o.model.toLowerCase().includes('fable')) throw new Stop(`refused model ${o.model}`)
   const modes = MODES.replaceAll('`full`', `\`${args.ponytail}\``)
   const full = `${modes}\n\nRun nonce: ${args.run_nonce}\n\n${prompt}`

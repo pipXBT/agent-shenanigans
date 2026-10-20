@@ -1,9 +1,9 @@
 ---
-name: run-plan
-description: "Use to execute a superpowers:writing-plans file one task at a time with a test gate and a receipt per task (lite, the default); --full adds a skeptic, a teeth check, and a three-reviewer pass. Triggers: 'run the plan', 'execute the implementation plan', '/agent-shenanigans:run-plan', 'run the plan --full', 'run the full pipeline'. With --probe it instead checks that agents this repo starts get the modes and have no tools."
+name: execute
+description: "Use to execute a superpowers:writing-plans file one task at a time with a test gate and a receipt per task (lite, the default); --full adds a skeptic, a teeth check, and a three-reviewer pass. Triggers: 'run the plan', 'execute the implementation plan', '/shenanigans:execute', 'run the plan --full', '/shenanigans:execute --full', 'run the full pipeline'. With --probe it instead checks that agents this repo starts get the modes and have no tools."
 ---
 
-# run-plan: entry point for adversarial-verification
+# execute: entry point for adversarial-verification
 
 Parse a plan file in code, show the owner what will run, then start the host's executor with the
 arguments `workflows/CONTRACT.md` section 1 defines. The executor does the work; this skill only
@@ -29,7 +29,7 @@ runs `workflows/adversarial-verification.rhai`.
    Refuse when `adversarial-verification.js` exists in `~/.grok/workflows`: that is the daemon route
    (a workflow converted to JS), which does not run the `.rhai` executor. Otherwise treat the route as
    the shell route. If `adversarial-verification.rhai` is missing from `~/.grok/workflows`, stop and tell the owner to run `./doctor --fix`.
-4. **Parse.** Run `python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/run-plan/scripts/parse_plan.py" "<plan_path>"`,
+4. **Parse.** Run `python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/execute/scripts/parse_plan.py" "<plan_path>"`,
    adding `--test-glob <glob>` once for each of `rules.test_globs`. It prints `{plan_hash, tasks, errors}` and
    exits 1 when `errors` is non-empty. Show each error and stop. One error to expect from
    `superpowers:writing-plans`: it puts a new test file on a `Create:` line, which counts the test as
@@ -82,8 +82,8 @@ run a plan in this mode.
    - **Claude Code.** One Workflow with the prompt in `args.prompt`:
 
      ```js
-     export const meta = { name: 'run-plan-probe', description: 'Spawn one tool-less agent and return its answer' }
-     return await agent(args.prompt, { label: 'probe', agentType: 'agent-shenanigans:probe', model: 'claude-opus-5-5', effort: 'xhigh' })
+     export const meta = { name: 'execute-probe', description: 'Spawn one tool-less agent and return its answer' }
+     return await agent(args.prompt, { label: 'probe', agentType: 'shenanigans:probe', model: 'claude-opus-5-5', effort: 'xhigh' })
      ```
 
    - **Grok Build.** `spawn_subagent` with a capability mode that has no file, shell, or search tool, `model: "grok-4.7"`.
@@ -106,7 +106,7 @@ run a plan in this mode.
     "requested": {"model": "claude-opus-5-5|grok-4.7", "effort": "xhigh"},
     "recorded": {"model": "...", "effort": "..."}, "route": "shell|daemon|null",
     "model_param_rejected": false, "cwd": "<dir>", "tool_calls": 0, "written_at": 0.0,
-    "shas": {"agent-shenanigans": "<sha>"}, "detail": "<why it failed, or empty>"}
+    "shas": {"shenanigans": "<sha>"}, "detail": "<why it failed, or empty>"}
    ```
 
    `recorded` is `null` when the host kept none; `detail` is read by `./doctor` when `passed` is false.

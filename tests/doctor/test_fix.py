@@ -11,8 +11,9 @@ from pathlib import Path
 
 from doctor import cli
 from doctor.fix import LockHeld, RunFolder, apply_fix, rollback
-from doctor.report import Finding
-from doctor.stack import LinkDecl, PluginDecl, SettingDecl, Stack
+from doctor.hosts import HostState, PluginState
+from doctor.report import Finding, build_report
+from doctor.stack import LinkDecl, PluginDecl, SettingDecl, Stack, load_stack
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -78,8 +79,8 @@ class FixCase(unittest.TestCase):
         self.stack = Stack(
             plugins=(
                 plugin(
-                    "agent-shenanigans", "agent-shenanigans@agent-shenanigans", "agent-shenanigans", "enabled", "enabled",
-                    "claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {repo} && claude plugin install agent-shenanigans@agent-shenanigans",
+                    "shenanigans", "shenanigans@agent-shenanigans", "shenanigans", "enabled", "enabled",
+                    "claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {repo} && claude plugin install shenanigans@agent-shenanigans",
                     "~/.grok/bin/grok plugin install {repo}",
                 ),
                 plugin("ponytail", "ponytail@ponytail", "ponytail", "enabled", "enabled",
@@ -304,21 +305,21 @@ class Fix(FixCase):
         grok = self.home / ".grok/bin/grok"
         commands, out = self.fix([
             Finding("grok", "wrong-state", "caveman", "installed but disabled", "drift"),
-            Finding("claude", "missing", "agent-shenanigans@agent-shenanigans", "not installed", "drift"),
+            Finding("claude", "missing", "shenanigans@agent-shenanigans", "not installed", "drift"),
             Finding("grok", "missing", "ponytail", "not installed", "drift"),
             Finding("claude", "wrong-state", "explanatory-output-style@claude-code-plugins", "installed, declared absent", "drift"),
             Finding("grok", "wrong-state", "explanatory-output-style", "loaded from the Claude install, declared absent", "drift"),
             Finding("grok", "wrong-state", "native-old", "installed, declared absent", "drift"),
             Finding("claude", "wrong-state", "cc-codemaps@cc-codemaps", "installed but disabled", "drift"),
-            Finding("grok", "checkout-drift", "agent-shenanigans", "installed a2b97fa, checkout HEAD a1d50e4", "drift"),
+            Finding("grok", "checkout-drift", "shenanigans", "installed a2b97fa, checkout HEAD a1d50e4", "drift"),
             Finding("claude", "missing", "caveman@caveman", "not installed", "drift"),
         ])
         self.assertEqual(commands, [
             "claude plugin uninstall explanatory-output-style@claude-code-plugins",
             f"{grok} plugin uninstall native-old",
-            f"{grok} plugin uninstall agent-shenanigans",
+            f"{grok} plugin uninstall shenanigans",
             f"claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {self.repo} && "
-            "claude plugin install agent-shenanigans@agent-shenanigans",
+            "claude plugin install shenanigans@agent-shenanigans",
             "~/.grok/bin/grok plugin install DietrichGebert/ponytail",
             f"~/.grok/bin/grok plugin install {self.repo}",
             "claude plugin install caveman@caveman",
@@ -327,6 +328,20 @@ class Fix(FixCase):
             "re-run ./doctor --fix",
         ])
         self.assertNotIn("_install", out)
+
+    def test_repo_stack_moves_an_install_off_the_old_plugin_name(self):
+        self.stack = load_stack(REPO / "stack.toml", REPO, {"HOME": str(self.home)})
+        old_id, old_name = "agent-shenanigans@agent-shenanigans", "agent-shenanigans"
+        claude = HostState("claude", {old_id: PluginState("claude", old_id, True, "s", None, False)}, (), ())
+        grok = HostState("grok", {old_name: PluginState("grok", old_name, True, "s", None, False)}, (), ())
+        commands, _ = self.fix(build_report(self.stack, claude, grok, {}, {}, None, self.home, self.repo))
+        self.assertEqual([c for c in commands if "shenanigans" in c or str(self.repo) in c], [
+            "claude plugin uninstall agent-shenanigans@agent-shenanigans",
+            f"{self.home / '.grok/bin/grok'} plugin uninstall agent-shenanigans",
+            f"claude plugin marketplace remove agent-shenanigans; claude plugin marketplace add {self.repo} && "
+            "claude plugin install shenanigans@agent-shenanigans",
+            f"~/.grok/bin/grok plugin install {self.repo} --trust",
+        ])
 
     def test_install_command_is_the_declared_text_not_derived_from_source(self):
         commands, _ = self.fix([Finding("claude", "missing", "ponytail@ponytail", "not installed", "drift")])
@@ -338,7 +353,7 @@ class Fix(FixCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), RunFolder(self.backup, "r1") as run:
             commands = apply_fix(
-                self.stack, [Finding("grok", "missing", "agent-shenanigans", "not installed", "drift")],
+                self.stack, [Finding("grok", "missing", "shenanigans", "not installed", "drift")],
                 self.home, spaced, run, self.resolves,
             )
         self.assertEqual(commands[0], f"~/.grok/bin/grok plugin install '{spaced}'")

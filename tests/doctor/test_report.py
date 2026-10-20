@@ -34,7 +34,7 @@ class ReportCase(unittest.TestCase):
         self.claude_skills, self.grok_skills, self.claude_users, self.grok_users = [], [], [], []
         self.claude_plugins, self.grok_plugins, self.loaded = {}, {}, {}
         for p in self.stack.plugins:
-            sha = HEAD if p.name == "agent-shenanigans" else f"sha-{p.name}"
+            sha = HEAD if p.name == "shenanigans" else f"sha-{p.name}"
             if "enabled" in (p.claude_state, p.grok_state):
                 self.loaded[p.name] = sha
             if p.claude_state == "enabled":
@@ -143,7 +143,7 @@ class Drift(ReportCase):
         self.assertEqual(self.kinds(), [("claude", "checkout-drift", "drift"), ("grok", "checkout-drift", "drift")])
 
     def test_local_install_sha_matches_on_its_head_part(self):
-        self.grok_plugins["agent-shenanigans"] = PluginState("grok", "agent-shenanigans", True, HEAD + "+0123456789ab", None, False)
+        self.grok_plugins["shenanigans"] = PluginState("grok", "shenanigans", True, HEAD + "+0123456789ab", None, False)
         self.assertEqual(self.report(), [])
 
     def test_local_install_hash_suffix_is_not_a_host_mismatch(self):

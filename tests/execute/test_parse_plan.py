@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SCRIPTS = REPO / "skills" / "run-plan" / "scripts"
+SCRIPTS = REPO / "skills" / "execute" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from parse_plan import parse_plan, plan_hash, validate  # noqa: E402

@@ -3,7 +3,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 STALE = ["cc-fork", "session-learnings", "skills/compound", "commands/init.md", "SKILL.workflow.md",
-         "debate-acpx.example.json", "grok/install.sh", "grok/workflows/", "/debate:all"]
+         "debate-acpx.example.json", "grok/install.sh", "grok/workflows/", "/debate:all",
+         "run-plan", "agent-shenanigans:"]
 
 
 class DocsRefsTest(unittest.TestCase):
@@ -18,14 +19,22 @@ class DocsRefsTest(unittest.TestCase):
         for f in ["plugin.json", "marketplace.json"]:
             data = (REPO / ".claude-plugin" / f).read_text()
             self.assertIn('"version": "0.2.0"', data, f)
-            self.assertIn("run-plan", data, f)
+            self.assertIn("execute", data, f)
+            self.assertNotIn("run-plan", data, f)
             self.assertNotIn("compound", data, f)
 
     def test_workflow_names_the_loop(self):
         w = (REPO / "WORKFLOW.md").read_text()
-        for s in ["./doctor", "superpowers:brainstorming", "superpowers:writing-plans", "run-plan",
+        for s in ["./doctor", "superpowers:brainstorming", "superpowers:writing-plans", "shenanigans:execute",
                   "/update-codemaps", "OWNER-ACCEPTED"]:
             self.assertIn(s, w)
+
+    def test_execute_skill_is_named_execute(self):
+        head = (REPO / "skills/execute/SKILL.md").read_text().split("\n---\n", 1)[0]
+        self.assertIn("\nname: execute\n", head)
+        for s in ["/shenanigans:execute", "/shenanigans:execute --full"]:
+            self.assertIn(s, head)
+        self.assertFalse((REPO / "skills/run-plan").exists())
 
 
 if __name__ == "__main__":

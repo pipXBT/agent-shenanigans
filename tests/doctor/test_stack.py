@@ -10,7 +10,7 @@ REPO = Path(__file__).resolve().parents[2]
 class LoadRepoStack(unittest.TestCase):
     def test_loads_repo_stack(self):
         s = load_stack(REPO / "stack.toml", REPO, {"HOME": "/h"})
-        self.assertEqual((len(s.plugins), len(s.links), len(s.settings)), (9, 2, 5))
+        self.assertEqual((len(s.plugins), len(s.links), len(s.settings)), (10, 2, 5))
         self.assertIn(Path("/h/.grok/skills/model-policy"), s.retire_after_probe)
         self.assertEqual(
             s.gated,
@@ -28,10 +28,17 @@ class LoadRepoStack(unittest.TestCase):
             with self.subTest(p.name):
                 self.assertEqual(bool(p.claude_install), p.claude_state == "enabled")
                 self.assertEqual(bool(p.grok_install), p.grok_state == "enabled")
-        mine = next(p for p in s.plugins if p.name == "agent-shenanigans")
+        mine = next(p for p in s.plugins if p.name == "shenanigans")
+        self.assertEqual((mine.claude_id, mine.grok_name), ("shenanigans@agent-shenanigans", "shenanigans"))
         self.assertIn("{repo}", mine.claude_install)
         self.assertEqual(mine.grok_install, "~/.grok/bin/grok plugin install {repo} --trust")
         self.assertIn("plugin marketplace remove agent-shenanigans", mine.claude_install)
+        self.assertTrue(mine.claude_install.endswith("claude plugin install shenanigans@agent-shenanigans"))
+
+    def test_the_old_plugin_name_is_declared_absent(self):
+        s = load_stack(REPO / "stack.toml", REPO, {"HOME": "/h"})
+        old = next(p for p in s.plugins if p.claude_id == "agent-shenanigans@agent-shenanigans")
+        self.assertEqual((old.grok_name, old.claude_state, old.grok_state), ("agent-shenanigans", "absent", "absent"))
 
     def test_install_commands_are_optional(self):
         s = load_stack(REPO / "stack.toml", REPO, {"HOME": "/h"})

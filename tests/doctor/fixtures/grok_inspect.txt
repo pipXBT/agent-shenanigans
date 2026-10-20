@@ -8,8 +8,8 @@
   └ init                                   user [claude] [collides with /init → /user:init]
   └ build-with-ai                          bundled
   └ imagine                                bundled [collides with /imagine → /bundled:imagine]
-  └ code-cleanup                           plugin: agent-shenanigans [collides with /code-cleanup → /agent-shenanigans:code-cleanup]
-  └ init                                   plugin: agent-shenanigans [collides with /init → /agent-shenanigans:init]
+  └ code-cleanup                           plugin: shenanigans [collides with /code-cleanup → /shenanigans:code-cleanup]
+  └ init                                   plugin: shenanigans [collides with /init → /shenanigans:init]
   └ ultracave                              plugin: caveman [claude]
   └ update-codemaps                        plugin: cc-codemaps [claude]
   └ run                                    plugin: debate [claude]

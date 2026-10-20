@@ -53,7 +53,7 @@ before any agent call.
 ## 2. Plan input
 
 The entry skill parses the plan file in code
-(`skills/run-plan/scripts/parse_plan.py`) before any agent runs and passes the
+(`skills/execute/scripts/parse_plan.py`) before any agent runs and passes the
 result as `tasks`:
 
 - One task per `### Task N: <title>` heading outside code fences; `id` is
@@ -371,7 +371,7 @@ Then retry with a new `implement` agent, never the old one:
   nothing); every other label (`plan`, `skeptic`, `review`, `verify-finding`,
   `fix-review`) gets `OTHER_MODEL`. Every call passes the
   full model id and `effort: "xhigh"`; no call inherits the session model.
-  Read-only labels use agent type `agent-shenanigans:reader` (tools `Read`,
+  Read-only labels use agent type `shenanigans:reader` (tools `Read`,
   `Grep`, `Glob`), never `Explore` or `Plan`.
 - **Grok.** `GROK_MODEL = "grok-4.7"` on every `agent()` and
   `spawn_subagent` call. Grok's workflow `agent()` takes no effort, so effort

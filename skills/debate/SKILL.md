@@ -1,6 +1,6 @@
 ---
 name: debate
-description: "Use to review a design spec or implementation plan with the owner's 14-seat panel (seven personas, each on Opus 5.5 and Grok 4.7 at xhigh). Triggers: 'debate the spec', 'debate the plan', 'panel review', '/agent-shenanigans:debate'."
+description: "Use to review a design spec or implementation plan with the owner's 14-seat panel (seven personas, each on Opus 5.5 and Grok 4.7 at xhigh). Triggers: 'debate the spec', 'debate the plan', 'panel review', '/shenanigans:debate'."
 ---
 
 # Debate: 14-seat panel review

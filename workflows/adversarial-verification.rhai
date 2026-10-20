@@ -1,7 +1,7 @@
 let meta = #{
     name: "adversarial-verification",
     description: "Run a writing-plans file one task at a time with skeptic, teeth, gate, and receipts (workflows/CONTRACT.md).",
-    when_to_use: "Started by the run-plan skill with the args in workflows/CONTRACT.md section 1, at effort xhigh. Every run is fresh; a restart reads the run state.",
+    when_to_use: "Started by the execute skill with the args in workflows/CONTRACT.md section 1, at effort xhigh. Every run is fresh; a restart reads the run state.",
     phases: [
         #{ title: "Preflight", detail: "args, branch, clean tree" },
         #{ title: "Plan", detail: "dependency graph, complexity, run state" },

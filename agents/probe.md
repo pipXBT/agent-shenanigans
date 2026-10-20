@@ -1,6 +1,6 @@
 ---
 name: probe
-description: Tool-less agent for the run-plan --probe check only. Never use it for real work.
+description: Tool-less agent for the execute --probe check only. Never use it for real work.
 tools: []
 ---
 

@@ -42,7 +42,7 @@ the checkout you keep; doctor's symlinks point into it. `doctor` never deletes (
 | Skill | What it does |
 |-------|--------------|
 | [debate](./skills/debate/) | Review a spec or plan with a 14-seat panel: seven personas, each on Opus 5.5 and Grok 4.7 at `xhigh`. A mechanical round rule gives `APPROVED` or `REVISE`; after 3 rounds the owner may record `OWNER-ACCEPTED`. |
-| [run-plan](./skills/run-plan/) | Execute a `superpowers:writing-plans` file task by task with a test gate and a receipt per task (lite, the default); `--full` adds a skeptic, a teeth check, and a three-reviewer pass. `--probe` checks that agents this repo starts get the modes and have no tools. |
+| [execute](./skills/execute/) | Execute a `superpowers:writing-plans` file task by task with a test gate and a receipt per task (lite, the default); `--full` adds a skeptic, a teeth check, and a three-reviewer pass. `--probe` checks that agents this repo starts get the modes and have no tools. |
 | [code-cleanup](./skills/code-cleanup/) | Deep cleanup by nine fresh tiered agents, one per concern (dedup, dead code, weak types, dead paths, AI slop, ...). Dry-run by default; worktree per mandate in edit mode. |
 | [check-in](./skills/check-in/) | Context-verified completion gate: a three-judge panel advises an overseer that decides whether a goal is actually met, from a check command and repo state, not just the transcript. |
 | [skill-postmortem](./skills/skill-postmortem/) | Review a skill against the sessions where it fired; rank friction by confidence and propose edits you approve one by one. |
