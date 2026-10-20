@@ -13,7 +13,8 @@ convention; `CLAUDE.md` is symlinked to it.)
 skills/<name>/      one skill each: SKILL.md (+ optional references/, scripts/)
 agents/             agent types the workflow spawns (probe: no tools; reader: read-only)
 workflows/          the adversarial-verification executors (.js for Claude, .rhai for Grok),
-                    CONTRACT.md they both implement, and the shared fixture cases
+                    CONTRACT.md they both implement, and the shared fixture cases;
+                    debate-round.js runs one debate round on Claude, one agent per seat
 rules/              modes.md, linked to ~/.claude/rules/ by doctor; carries the modes marker
 lib/doctor/         the code behind ./doctor (Python standard library only)
 doctor              the drift checker and fixer; reads stack.toml

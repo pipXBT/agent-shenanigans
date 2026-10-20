@@ -35,6 +35,14 @@ class DebateSkillTest(unittest.TestCase):
         self.assertNotIn("plain-prose line", body)
         self.assertNotIn("modes off", body)
 
+    def test_claude_runs_the_round_as_a_workflow_and_grok_runs_it_directly(self):
+        body = SKILL.read_text()
+        for s in ['Workflow({scriptPath: "${CLAUDE_PLUGIN_ROOT}/workflows/debate-round.js", args})',
+                  "run_seats.py\" collect", "--stamp ~/.agent-shenanigans-probe/seat-dry-run.json",
+                  "<seat>/<seat>-output.md", "<seat>/<seat>-prompt.txt", "plan_hash_mismatch", "python3 -c",
+                  "**Grok Build:**", "run_seats.py\" run"]:
+            self.assertIn(s, body)
+
     def test_no_stale_cc_debate_command_reference(self):
         # A later task scans every skill .md for stale command names.
         self.assertNotIn("/debate:all", SKILL.read_text())

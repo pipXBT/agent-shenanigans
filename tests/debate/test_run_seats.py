@@ -77,6 +77,13 @@ class RunSeatsTest(unittest.TestCase):
         return run_seats.main(["run", "--panel", str(self.panel), "--work-dir", str(w or self.w),
                                "--plan", str(self.plan), *extra])
 
+    def sub_runs(self, names):
+        """One runner per seat in <w>/<seat>/, as the debate-round workflow starts them; their exit codes."""
+        return [self.run_cmd("--seats", name, w=self.w / name) for name in names]
+
+    def collect(self, *extra):
+        return run_seats.main(["collect", "--work-dir", str(self.w), *extra])
+
     def probe(self):
         out = self.tmp / "probe" / "seats.json"
         rc = run_seats.main(["probe", "--panel", str(self.panel), "--work-dir", str(self.w), "--out", str(out)])
@@ -271,6 +278,55 @@ class RunSeatsTest(unittest.TestCase):
             self.assertEqual(set(data), {"host", "passed", "written_at", "detail"})
             self.assertEqual((data["host"], data["passed"], data["detail"]), ("seat-dry-run", True, "14/14"))
             self.assertLessEqual(abs(data["written_at"] - time.time()), 60)
+
+    def test_collect_merges_the_seat_sub_runs(self):
+        self.fakes(grok='echo "VERDICT: REVISE"')
+        self.assertEqual(self.sub_runs(["skeptic-opus", "skeptic-grok"]), [0, 0])
+        self.assertEqual(self.run_cmd(w=self.w / "exchange"), 0)  # a targeted exchange's folder is no seat's sub-run
+        self.assertEqual(self.collect(), 0)
+        sha = hashlib.sha256(PLAN.encode()).hexdigest()
+        self.assertEqual(self.summary(), {
+            "requested": 2, "returned": 2, "plan_sha256": sha, "approved": False,
+            "verdicts": {"skeptic-opus": "APPROVED", "skeptic-grok": "REVISE"}})
+        self.assertEqual(self.read("plan.sha256"), sha)
+
+    def test_collect_counts_a_seat_that_did_not_return(self):
+        self.fakes(grok="exit 1")
+        self.assertEqual(self.sub_runs(["skeptic-opus", "skeptic-grok"]), [0, 1])
+        self.assertEqual(self.collect(), 1)
+        s = self.summary()
+        self.assertEqual((s["requested"], s["returned"], s["verdicts"]["skeptic-grok"]), (2, 1, None))
+
+    def test_collect_approves_and_stamps_only_a_full_panel_on_one_plan(self):
+        full = json.loads(PANEL.read_text())
+        for entry in full["seats"].values():
+            entry["timeout"] = 2
+        self.write_panel(full)
+        names = list(full["seats"])
+        stamp = self.tmp / "probe" / "seat-dry-run.json"
+        self.fakes()
+        self.assertEqual(self.sub_runs(names), [0] * 14)
+        with self.subTest("13 of 14"):
+            (self.w / names[0]).rename(self.tmp / "aside")
+            self.assertEqual(self.collect("--stamp", str(stamp)), 0)
+            self.assertEqual((self.summary()["requested"], self.summary()["approved"]), (13, False))
+            self.assertFalse(stamp.exists())
+            (self.tmp / "aside").rename(self.w / names[0])
+        with self.subTest("14 of 14"):
+            self.assertEqual(self.collect("--stamp", str(stamp)), 0)
+            s = self.summary()
+            self.assertEqual((s["requested"], s["returned"], s["approved"]), (14, 14, True))
+            self.assertNotIn("plan_hash_mismatch", s)
+            data = json.loads(stamp.read_text())
+            self.assertEqual((data["host"], data["passed"], data["detail"]), ("seat-dry-run", True, "14/14"))
+        with self.subTest("one seat saw other plan bytes"):
+            self.plan.write_text("Ship the other widget.\n")
+            self.assertEqual(self.sub_runs(names[:1]), [0])
+            self.assertEqual(self.collect(), 1)
+            s = self.summary()
+            self.assertEqual((s["returned"], s["approved"], s["plan_hash_mismatch"], s["plan_sha256"]),
+                             (14, False, True, None))
+            self.assertEqual(self.read("plan.sha256"), "")
 
     def test_probe_prompt_carries_the_seat_modes(self):
         self.write_panel(panel_json(caveman="ultracave", ponytail="off"))

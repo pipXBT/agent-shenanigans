@@ -1,6 +1,7 @@
 """Run debate seats in parallel, record each seat's output, and summarise the round.
 
     run_seats.py run --panel PANEL --work-dir W --plan PLAN [--seats a,b] [--stamp PATH]
+    run_seats.py collect --work-dir W [--stamp PATH]
     run_seats.py probe --panel PANEL --work-dir W --out PATH
 """
 import argparse
@@ -92,6 +93,11 @@ def run_with_retry(seats: list[Seat], w: Path, prompts: dict[str, str]) -> dict[
     return verdicts
 
 
+def write_stamp(stamp: Path) -> None:
+    write_json(stamp, {"host": "seat-dry-run", "passed": True, "written_at": time.time(),
+                       "detail": f"{FULL_PANEL}/{FULL_PANEL}"})
+
+
 def run(panel: list[Seat], seats: list[Seat], w: Path, plan: Path, stamp: Path | None) -> int:
     plan_bytes = plan.read_bytes()
     plan_sha = hashlib.sha256(plan_bytes).hexdigest()
@@ -108,9 +114,33 @@ def run(panel: list[Seat], seats: list[Seat], w: Path, plan: Path, stamp: Path |
         # A subset never approves the round.
         "approved": returned == len(seats) == len(panel) and all(v == "APPROVED" for v in verdicts.values())})
     if stamp and returned == len(seats) == FULL_PANEL:
-        write_json(stamp, {"host": "seat-dry-run", "passed": True, "written_at": time.time(),
-                           "detail": f"{FULL_PANEL}/{FULL_PANEL}"})
+        write_stamp(stamp)
     return 0 if returned == len(seats) else 1
+
+
+def collect(w: Path, stamp: Path | None) -> int:
+    """Merge the one-seat sub-runs W/<seat>/ (the debate-round workflow starts one per seat) into W/summary.json."""
+    verdicts, hashes = {}, set()
+    for d in sorted(p for p in w.iterdir() if (p / "plan.sha256").is_file()):
+        f = d / "summary.json"
+        sub = json.loads(f.read_text())["verdicts"] if f.exists() else {d.name: None}  # no summary: it never finished
+        if d.name not in sub:
+            continue  # not one seat's sub-run (a targeted exchange's folder, say)
+        verdicts[d.name] = sub[d.name]
+        hashes.add((d / "plan.sha256").read_text())
+    requested, returned = len(verdicts), sum(v is not None for v in verdicts.values())
+    mismatch = len(hashes) > 1  # the seats did not all see the same plan bytes
+    plan_sha = None if mismatch or not hashes else next(iter(hashes))
+    (w / "plan.sha256").write_text(plan_sha or "")
+    summary = {"requested": requested, "returned": returned, "verdicts": verdicts, "plan_sha256": plan_sha,
+               "approved": plan_sha is not None and returned == requested == FULL_PANEL
+               and all(v == "APPROVED" for v in verdicts.values())}
+    if mismatch:
+        summary["plan_hash_mismatch"] = True
+    write_json(w / "summary.json", summary)
+    if stamp and returned == requested == FULL_PANEL:
+        write_stamp(stamp)
+    return 0 if requested and returned == requested and not mismatch else 1
 
 
 def probe(panel: list[Seat], w: Path, out: Path) -> int:
@@ -133,7 +163,7 @@ def probe(panel: list[Seat], w: Path, out: Path) -> int:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="run_seats.py")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    run_ap, probe_ap = sub.add_parser("run"), sub.add_parser("probe")
+    run_ap, probe_ap, collect_ap = sub.add_parser("run"), sub.add_parser("probe"), sub.add_parser("collect")
     path = lambda s: Path(s).expanduser()  # noqa: E731
     for p in (run_ap, probe_ap):
         p.add_argument("--panel", required=True, type=path)
@@ -142,7 +172,11 @@ def main(argv: list[str]) -> int:
     run_ap.add_argument("--seats", help="comma-separated seat names (default: the whole panel)")
     run_ap.add_argument("--stamp", type=path)
     probe_ap.add_argument("--out", required=True, type=path)
+    collect_ap.add_argument("--work-dir", required=True, type=path)
+    collect_ap.add_argument("--stamp", type=path)
     args = ap.parse_args(argv)
+    if args.cmd == "collect":
+        return collect(args.work_dir.resolve(), args.stamp)
 
     panel = load_panel(args.panel)
     w = args.work_dir.resolve()

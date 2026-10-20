@@ -40,6 +40,34 @@ Show the user the first 20 lines and `wc -w`.
 
 ## 2. Run the round
 
+A round can take 30 minutes or more, past the foreground shell limit.
+
+**Claude Code:** run the round as the `debate-round` workflow. It shows in `/workflows` with one
+phase per model (`Opus 5.5`, `Grok 4.7`) and one agent per persona. Each agent is a Haiku wrapper
+that starts one seat's runner with the Bash tool's `run_in_background`, in its own sub-run
+`<work_dir>/<seat>/`, waits for it, and returns the seat's verdict. Every path in `args` is
+absolute: expand `CLAUDE_PLUGIN_ROOT` and `$DEBATE` first. `seats` lists the seats to run with
+each one's persona and host; for the whole panel it is what this prints:
+
+```bash
+python3 -c 'import json, sys; print(json.dumps([{"seat": k, "persona": v["persona"], "host": v["host"]} for k, v in json.load(open(sys.argv[1]))["seats"].items()]))' "${CLAUDE_PLUGIN_ROOT}/skills/debate/panel.json"
+```
+
+Then run `Workflow({scriptPath: "${CLAUDE_PLUGIN_ROOT}/workflows/debate-round.js", args})` with
+`args` = `{repo: "<plugin dir>", panel: "<plugin dir>/skills/debate/panel.json", work_dir: "$DEBATE/round-1", plan: "$DEBATE/plan.md", seats: <that list>}`.
+When it returns, merge the sub-runs into the round folder:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/debate/scripts/run_seats.py" collect \
+  --work-dir "$DEBATE/round-1" --stamp ~/.agent-shenanigans-probe/seat-dry-run.json
+```
+
+The workflow's verdict map is a progress view only; the round rule reads the `summary.json`
+that `collect` writes. When the sub-runs saw different plan bytes, `collect` sets
+`plan_hash_mismatch` and the round is not approved.
+
+**Grok Build:** run the runner directly in a background terminal and wait for it to exit:
+
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/debate/scripts/run_seats.py" run \
   --panel "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/debate/panel.json" \
@@ -47,19 +75,15 @@ python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/debate/scripts/run_seats.py"
   --stamp ~/.agent-shenanigans-probe/seat-dry-run.json
 ```
 
-Start it in the background and wait for it. A round can take 30 minutes or more, past the
-foreground shell limit.
+To stop a round early, find the runner's `python3` processes (one per seat on Claude Code;
+`ps -eo pid,args | grep '[r]un_seats.py'`, not the wrapping shell) and `kill <pid>` each. On
+SIGINT or SIGTERM a runner kills every live seat's process group before it exits. Do not use
+`kill -9` on a runner: it cannot clean up.
 
-- **Claude Code:** the Bash tool with `run_in_background`. The harness notifies on exit; do not poll.
-- **Grok Build:** a background terminal. Wait for it to exit.
-
-To stop a round early, find the runner's `python3` process (`ps -eo pid,args | grep '[r]un_seats.py'`;
-not the wrapping shell) and `kill <pid>`. On SIGINT or SIGTERM the runner kills every live seat's
-process group before it exits. Do not use `kill -9` on the runner: it cannot clean up.
-
-`--seats a,b` runs a subset (seat names such as `skeptic-opus,skeptic-grok`). A subset names whole
-personas, reports `N/<requested>`, and never produces the final APPROVED. `--stamp` only writes
-when all 14 seats return, so it is safe to pass every time.
+`--seats a,b` runs a subset (seat names such as `skeptic-opus,skeptic-grok`); on Claude Code,
+list only those seats in `seats`. A subset names whole personas, reports `N/<requested>`, and
+never produces the final APPROVED. `--stamp` only writes when all 14 seats return, so it is safe
+to pass every time.
 
 Each seat runs in the caveman and ponytail modes `panel.json` gives its persona. Both seats of a
 persona always share modes, so a split comes from reasoning, not style (`load_panel` rejects a
@@ -78,7 +102,9 @@ panel where they differ). The modes reach Opus through `CAVEMAN_DEFAULT_MODE` an
 
 The runner appends those mode lines (or "Write plain prose." when a persona has both off) and a
 final-`VERDICT:`-line instruction to every seat's prompt, re-runs seats that returned no verdict
-once, and writes into the round folder:
+once, and writes into the round folder. On Claude Code each seat's files are in its sub-run,
+`<seat>/`, next to that sub-run's own `plan.sha256` and `summary.json`; `collect` writes the
+round's `plan.sha256` and `summary.json`.
 
 | File | Meaning |
 |------|---------|
@@ -90,7 +116,8 @@ once, and writes into the round folder:
 
 ## 3. Read every review
 
-Read every `<seat>-output.md` in full. No skimming, no sampling. A seat with exit code other than
+Read every seat's output in full: `<seat>/<seat>-output.md` on Claude Code, `<seat>-output.md`
+on Grok Build. No skimming, no sampling. A seat with exit code other than
 `0` and no verdict is dead; read its `-stderr.txt` and say so rather than treating silence as consent.
 
 ## 4. Synthesize
@@ -107,11 +134,13 @@ Engineer, Pager Duty, Future Me), taking verdicts from `summary.json`. Example r
 
 For a contradiction that the plan text cannot settle, ask the two seats involved to answer each
 other. Use a separate folder so the round record stays intact: `$DEBATE/round-1/exchange/`.
-`mkdir -p` it and write `<seat>-prompt.txt` for each seat. That file replaces the seat's whole
+`mkdir -p` it and write `<seat>-prompt.txt` for each seat (`<seat>/<seat>-prompt.txt` on Claude
+Code, where each sub-run reads its own). That file replaces the seat's whole
 prompt (persona text and plan), so make it self-contained: the seat's `system_prompt` copied from
 `panel.json`, the other seat's finding quoted, the plan path, and the question "does your
-verdict still hold, and what exact text in the plan would change it?". Run
-`run_seats.py run --seats <seat-a>,<seat-b>` with that work dir and the same `--plan`.
+verdict still hold, and what exact text in the plan would change it?". Run the round as in
+step 2 with that folder as the work dir, the same plan, and only the two seats (on Grok Build,
+`run_seats.py run --seats <seat-a>,<seat-b>`).
 
 The exchange only supplies text for the next revision; it never changes a seat's or the round's verdict.
 Ignore the `VERDICT:` lines and the exchange's `summary.json`.
@@ -132,7 +161,8 @@ Otherwise the round is REVISE:
   findings go into the revision.
 - A seat still missing after the runner's one re-run makes the round REVISE, reported as
   `N/<requested> returned` (for example `13/14 returned`).
-- A hash mismatch means the seats never saw these bytes: say so and re-review. Never record
+- A hash mismatch, or `plan_hash_mismatch` in `summary.json`, means the seats never saw these
+  bytes: say so and re-review. Never record
   APPROVED on unseen bytes.
 
 ## 6. Revise and repeat
@@ -142,7 +172,8 @@ Maximum 3 rounds. After a REVISE round:
 1. Write `$DEBATE/revisions-round-N.md`: each finding addressed, and the plan edit that answers it.
 2. Edit `plan.md` and make a new folder `$DEBATE/round-N+1`.
 3. Run the whole panel again (a partial re-run cannot approve a round). For every seat that said
-   REVISE, write `<seat>-prompt.txt` in the new folder: its `system_prompt` from `panel.json`,
+   REVISE, write `<seat>-prompt.txt` in the new folder (`<seat>/<seat>-prompt.txt` on Claude
+   Code): its `system_prompt` from `panel.json`,
    its previous findings, the revision summary, and the revised plan pasted verbatim from
    `plan.md` (so the hash still matches what the seat saw). Other seats use the default prompt.
 
