@@ -7,7 +7,8 @@ description: "Use to review a design spec or implementation plan with the owner'
 
 Send a spec or plan to seven personas, each run twice (once on `claude-opus-5-5`, once on
 `grok-4.7`, both `xhigh`), before any code is written. One mechanical round rule decides the
-verdict. The same procedure and the same script run on Claude Code and Grok Build.
+verdict. The same procedure and the same script run on Claude Code and Grok Build. "N rounds",
+"N panels" and "N debates" all mean N rounds of the full 14-seat panel.
 
 Seats are read-only by allowlist (Opus: `Read,Grep,Glob`; Grok: read tools only, no subagents,
 no web search, no memory, no MCP). They can read files; they cannot change anything.
@@ -35,6 +36,9 @@ DEBATE="$PWD/.tmp/debate-$ID"
 mkdir -p "$DEBATE/round-1"
 cp <spec-or-plan-file> "$DEBATE/plan.md"
 ```
+
+If the target is not one spec or plan file (a design, a page, a set of files), build `plan.md`
+from the owner's brief plus the text or files under review, and tell the owner what went in.
 
 Seats run from their own round folder, not from the repo. If the plan names files relative to a
 repo, make the first line of `plan.md` `Repository: <absolute repo root> (paths below are relative
