@@ -89,8 +89,9 @@ python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/debate/scripts/run_seats.py"
 ```
 
 To stop a round early, find this debate's runner `python3` processes (one per seat on Claude
-Code; `pgrep -f "run_seats.py run .*$DEBATE"`, not the wrapping shell; other sessions' debates
-also run `run_seats.py`, so never match on the script name alone) and `kill <pid>` each. On
+Code) with `pgrep -f "^[^ ]*[Pp]ython[^ ]* [^ ]*run_seats.py run .*$DEBATE"`. The anchor skips
+the wrapping shell, whose command line holds the same text, and `$DEBATE` skips other sessions'
+debates, which also run `run_seats.py`. `kill <pid>` each. On
 SIGINT or SIGTERM a runner kills every live seat's process group before it exits. Do not use
 `kill -9` on a runner: it cannot clean up.
 
