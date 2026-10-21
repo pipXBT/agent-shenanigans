@@ -60,7 +60,8 @@ Stages 1 and 3 stay entirely in superpowers; stage 6 is the cc-codemaps plugin.
 Seven personas (Skeptic, Architect, Pragmatist, Bullshit Detector, Constraint Engineer, Pager
 Duty, Future Me), each run on Opus 5.5 and on Grok 4.7, both at `xhigh`: 14 seats from
 `skills/debate/panel.json`, run by the repo's own seat runner on both hosts. Seats are read-only.
-On Claude Code a round runs as the `debate-round` workflow, so `/workflows` shows each seat.
+On Claude Code the main session starts each seat as its own background job, which reports when
+the seat finishes.
 
 The round rule is mechanical. A round is **APPROVED** only when every requested seat returned,
 every verdict is `APPROVED`, and the plan hash the seats saw matches the plan file. A persona

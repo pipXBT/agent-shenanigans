@@ -42,30 +42,34 @@ Show the user the first 20 lines and `wc -w`.
 
 A round can take 30 minutes or more, past the foreground shell limit.
 
-**Claude Code:** run the round as the `debate-round` workflow. It shows in `/workflows` with one
-phase per model (`Opus 5.5 seats`, `Grok 4.7 seats`) and one agent per persona, labeled with the
-seat's real reviewer (e.g. `skeptic · claude-opus-5-5 xhigh`). The model column shows Haiku: each agent is a Haiku wrapper
-that starts one seat's runner with the Bash tool's `run_in_background`, in its own sub-run
-`<work_dir>/<seat>/`, waits for it, and returns the seat's verdict. Every path in `args` is
-absolute: expand `CLAUDE_PLUGIN_ROOT` and `$DEBATE` first. `seats` lists the seats to run with
-each one's persona, host, model, and effort; for the whole panel it is what this prints:
+**Claude Code:** start one background job per seat yourself, from the main session: one Bash tool
+call per seat with `run_in_background: true`, each in its own sub-run `<work_dir>/<seat>/`. Each
+job notifies you when its seat finishes; do not poll. Do not hand seats to subagents or a
+workflow: a subagent's background job is killed when the subagent ends its turn, long before a
+seat finishes. The seat names are the keys of `panel.json`:
 
 ```bash
-python3 -c 'import json, sys; print(json.dumps([{"seat": k, "persona": v["persona"], "host": v["host"], "model": v["model"], "effort": v["effort"]} for k, v in json.load(open(sys.argv[1]))["seats"].items()]))' "${CLAUDE_PLUGIN_ROOT}/skills/debate/panel.json"
+python3 -c 'import json, sys; print(" ".join(json.load(open(sys.argv[1]))["seats"]))' "${CLAUDE_PLUGIN_ROOT}/skills/debate/panel.json"
 ```
 
-Then run `Workflow({scriptPath: "${CLAUDE_PLUGIN_ROOT}/workflows/debate-round.js", args})` with
-`args` = `{repo: "<plugin dir>", panel: "<plugin dir>/skills/debate/panel.json", work_dir: "$DEBATE/round-1", plan: "$DEBATE/plan.md", seats: <that list>}`.
-When it returns, merge the sub-runs into the round folder:
+For each seat `<s>`, one call:
+
+```bash
+mkdir -p "$DEBATE/round-1/<s>" && python3 "${CLAUDE_PLUGIN_ROOT}/skills/debate/scripts/run_seats.py" run \
+  --panel "${CLAUDE_PLUGIN_ROOT}/skills/debate/panel.json" --work-dir "$DEBATE/round-1/<s>" \
+  --plan "$DEBATE/plan.md" --seats <s>
+```
+
+When every job has finished, merge the sub-runs into the round folder:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/debate/scripts/run_seats.py" collect \
   --work-dir "$DEBATE/round-1" --stamp ~/.agent-shenanigans-probe/seat-dry-run.json
 ```
 
-The workflow's verdict map is a progress view only; the round rule reads the `summary.json`
-that `collect` writes. When the sub-runs saw different plan bytes, `collect` sets
-`plan_hash_mismatch` and the round is not approved.
+The round rule reads the `summary.json` that `collect` writes. When the sub-runs saw different
+plan bytes, `collect` sets `plan_hash_mismatch` and the round is not approved. To re-run a dead
+seat, `rm -rf` its sub-run folder and start its job again on the same `plan.md`.
 
 **Grok Build:** run the runner directly in a background terminal and wait for it to exit:
 
@@ -82,7 +86,7 @@ SIGINT or SIGTERM a runner kills every live seat's process group before it exits
 `kill -9` on a runner: it cannot clean up.
 
 `--seats a,b` runs a subset (seat names such as `skeptic-opus,skeptic-grok`); on Claude Code,
-list only those seats in `seats`. A subset names whole personas, reports `N/<requested>`, and
+start jobs for only those seats. A subset names whole personas, reports `N/<requested>`, and
 never produces the final APPROVED. `--stamp` only writes when all 14 seats return, so it is safe
 to pass every time.
 

@@ -119,7 +119,7 @@ def run(panel: list[Seat], seats: list[Seat], w: Path, plan: Path, stamp: Path |
 
 
 def collect(w: Path, stamp: Path | None) -> int:
-    """Merge the one-seat sub-runs W/<seat>/ (the debate-round workflow starts one per seat) into W/summary.json."""
+    """Merge the one-seat sub-runs W/<seat>/ (on Claude Code the skill starts one per seat) into W/summary.json."""
     verdicts, hashes = {}, set()
     for d in sorted(p for p in w.iterdir() if (p / "plan.sha256").is_file()):
         f = d / "summary.json"

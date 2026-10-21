@@ -78,7 +78,7 @@ class RunSeatsTest(unittest.TestCase):
                                "--plan", str(self.plan), *extra])
 
     def sub_runs(self, names):
-        """One runner per seat in <w>/<seat>/, as the debate-round workflow starts them; their exit codes."""
+        """One runner per seat in <w>/<seat>/, as the skill starts them on Claude Code; their exit codes."""
         return [self.run_cmd("--seats", name, w=self.w / name) for name in names]
 
     def collect(self, *extra):

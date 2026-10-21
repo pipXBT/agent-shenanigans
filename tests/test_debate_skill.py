@@ -35,13 +35,16 @@ class DebateSkillTest(unittest.TestCase):
         self.assertNotIn("plain-prose line", body)
         self.assertNotIn("modes off", body)
 
-    def test_claude_runs_the_round_as_a_workflow_and_grok_runs_it_directly(self):
+    def test_claude_runs_each_seat_as_a_background_job_and_grok_runs_it_directly(self):
         body = SKILL.read_text()
-        for s in ['Workflow({scriptPath: "${CLAUDE_PLUGIN_ROOT}/workflows/debate-round.js", args})',
+        for s in ["one Bash tool\ncall per seat with `run_in_background: true`", "--seats <s>",
                   "run_seats.py\" collect", "--stamp ~/.agent-shenanigans-probe/seat-dry-run.json",
                   "<seat>/<seat>-output.md", "<seat>/<seat>-prompt.txt", "plan_hash_mismatch", "python3 -c",
                   "**Grok Build:**", "run_seats.py\" run"]:
             self.assertIn(s, body)
+        # Subagent wrappers lose their background job when they end their turn.
+        self.assertNotIn("debate-round", body)
+        self.assertFalse((REPO / "workflows/debate-round.js").exists())
 
     def test_no_stale_cc_debate_command_reference(self):
         # A later task scans every skill .md for stale command names.
