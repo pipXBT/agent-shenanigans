@@ -36,6 +36,10 @@ mkdir -p "$DEBATE/round-1"
 cp <spec-or-plan-file> "$DEBATE/plan.md"
 ```
 
+Seats run from their own round folder, not from the repo. If the plan names files relative to a
+repo, make the first line of `plan.md` `Repository: <absolute repo root> (paths below are relative
+to it).`
+
 Show the user the first 20 lines and `wc -w`.
 
 ## 2. Run the round
@@ -80,8 +84,9 @@ python3 "${CLAUDE_PLUGIN_ROOT:-<plugin dir>}/skills/debate/scripts/run_seats.py"
   --stamp ~/.agent-shenanigans-probe/seat-dry-run.json
 ```
 
-To stop a round early, find the runner's `python3` processes (one per seat on Claude Code;
-`ps -eo pid,args | grep '[r]un_seats.py'`, not the wrapping shell) and `kill <pid>` each. On
+To stop a round early, find this debate's runner `python3` processes (one per seat on Claude
+Code; `pgrep -f "run_seats.py run .*$DEBATE"`, not the wrapping shell; other sessions' debates
+also run `run_seats.py`, so never match on the script name alone) and `kill <pid>` each. On
 SIGINT or SIGTERM a runner kills every live seat's process group before it exits. Do not use
 `kill -9` on a runner: it cannot clean up.
 
