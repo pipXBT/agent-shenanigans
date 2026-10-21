@@ -815,18 +815,30 @@ fn review_stage(B) {
     }
     if confirmed.len() == 0 { return "review: " + findings.len().to_string() + " findings, none confirmed"; }
 
-    // Fix scope in code: confirmed paths, deduplicated, minus forbid, split by rules.test_globs.
+    // Fix scope in code: confirmed paths, deduplicated, minus forbid, split by rules.test_globs,
+    // then each owning plan task appends its tests. Dedup against tests, not seen (seen keeps forbid).
     let seen = [];
     let files = [];
     let tests = [];
+    let surviving = [];
     let brief = "";
     for f in confirmed {
         if !seen.contains(f.file) && !matches(f.file, a.forbid) {
+            surviving.push(f.file);
             if matches(f.file, a.rules.test_globs) { tests.push(f.file); } else { files.push(f.file); }
         }
         seen.push(f.file);
         if brief != "" { brief += "\n"; }
         brief += "- " + f.file + ": " + f.issue + " (" + text_of(f.severity) + "). Evidence: " + f.evidence;
+    }
+    for plan_task in a.tasks {
+        let owns = false;
+        for p in surviving { if listed(p, plan_task.files) { owns = true; } }
+        if owns {
+            for p in plan_task.tests {
+                if !tests.contains(p) && !matches(p, a.forbid) { tests.push(p); }
+            }
+        }
     }
     check(files.len() + tests.len() > 0, "review: every confirmed finding is in a forbidden path");
     let t = #{ id: "review-fix", title: "Fix confirmed review findings", files: files, tests: tests, kind: (), brief: brief };

@@ -562,8 +562,17 @@ async function reviewStage(B, state) {
 
   const files = []
   const tests = []
+  const surviving = []
   for (const p of new Set(confirmed.map(f => f.file)))
-    if (!matches(p, args.forbid)) (matches(p, args.rules.test_globs) ? tests : files).push(p)
+    if (!matches(p, args.forbid)) {
+      surviving.push(p)
+      ;(matches(p, args.rules.test_globs) ? tests : files).push(p)
+    }
+  for (const task of args.tasks) {
+    if (!surviving.some(p => listed(p, task.files))) continue
+    for (const p of task.tests)
+      if (!tests.includes(p) && !matches(p, args.forbid)) tests.push(p)
+  }
   check(files.length + tests.length > 0, 'review: every confirmed finding is in a forbidden path')
   const t = { id: 'review-fix', title: 'Fix confirmed review findings', files, tests, kind: null,
     brief: confirmed.map(f => `- ${f.file}: ${f.issue} (${f.severity}). Evidence: ${f.evidence}`).join('\n') }

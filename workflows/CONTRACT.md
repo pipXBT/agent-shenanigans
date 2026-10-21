@@ -424,8 +424,13 @@ otherwise the run ends at stage `done`.
   trimming.
 - No confirmed finding: the run ends at stage `done`.
 - Fix scope, in code: the confirmed findings' `file` values, deduplicated,
-  minus any that match a `forbid` glob. Those matching a `rules.test_globs`
-  glob become `tests`; the rest become `files`. Both empty: stop.
+  minus any that match a `forbid` glob. Call that set the surviving paths.
+  Those matching a `rules.test_globs` glob become `tests`; the rest become
+  `files`. Then, for each plan task in `args.tasks` order, if any surviving
+  path is `listed` in that task's `files`, append that task's `tests` paths
+  to `tests`, in listed order, skipping a path already in `tests` or matching
+  a `forbid` glob. `listed` is the executor's existing path check (equal, or
+  under an entry that ends in `/`). Both empty after that append: stop.
 - The fix runs as task `review-fix` through steps 1–6 with one attempt:
   `fix-review` replaces `implement`, and its prompt lists the confirmed
   findings with their evidence. It runs on `OTHER_MODEL` (Claude) or
