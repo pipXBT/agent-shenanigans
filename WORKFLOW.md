@@ -66,9 +66,9 @@ the seat finishes.
 The round rule is mechanical. A round is **APPROVED** only when every requested seat returned,
 every verdict is `APPROVED`, and the plan hash the seats saw matches the plan file. A persona
 whose two models disagree makes the round **REVISE**. Subsets never produce the final APPROVED.
-Revise and repeat for at most 3 rounds. At the cap with any seat still REVISE, stop and report
-the open items; the owner may then sign off with **OWNER-ACCEPTED**, recorded with the open items
-listed. It is never APPROVED, and it lets step 3 proceed.
+Revise and repeat for at most 3 rounds, or more if the owner asks. At the cap with any seat still
+REVISE, stop and report the open items; the owner may then sign off with **OWNER-ACCEPTED**,
+recorded with the open items and any plan changes the panel did not review. It is never APPROVED, and it lets step 3 proceed.
 
 ### 4 · Run the plan
 

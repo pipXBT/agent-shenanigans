@@ -110,6 +110,11 @@ panel where they differ). The modes reach Opus through `CAVEMAN_DEFAULT_MODE` an
 | pager-duty | ultracave | off |
 | future-me | ultracave | ultra |
 
+To change modes or timeouts for one debate (for example every seat at ponytail ultra with a
+900 s timeout), copy `panel.json` into `$DEBATE`, edit the copy, and pass it as `--panel` for
+every seat of that debate. Both seats of a persona must still match. Never edit the shared
+`panel.json` for one debate.
+
 The runner appends those mode lines (or "Write plain prose." when a persona has both off) and a
 final-`VERDICT:`-line instruction to every seat's prompt, re-runs seats that returned no verdict
 once, and writes into the round folder. On Claude Code each seat's files are in its sub-run,
@@ -177,7 +182,9 @@ Otherwise the round is REVISE:
 
 ## 6. Revise and repeat
 
-Maximum 3 rounds. After a REVISE round:
+Maximum 3 rounds, unless the owner asks for more: extra rounds continue in the same folder as
+`round-4`, `round-5`, …, and each report says the round is past the default cap. After a REVISE
+round:
 
 1. Write `$DEBATE/revisions-round-N.md`: each finding addressed, and the plan edit that answers it.
 2. Edit `plan.md` and make a new folder `$DEBATE/round-N+1`.
@@ -190,6 +197,9 @@ Maximum 3 rounds. After a REVISE round:
 At the cap with any seat still REVISE, stop. Report the open items per seat, and offer the owner
 `OWNER-ACCEPTED`: an explicit sign-off recorded with the open items listed. It is never
 APPROVED, and it lets the next workflow step proceed. Do not record it without the owner's say-so.
+It covers only bytes the panel saw: if `plan.md`'s hash differs from the last round's
+`plan.sha256`, the record lists every change made since that round under "Unreviewed changes"
+(or those changes get one more round first).
 
 ## Cost and time
 
